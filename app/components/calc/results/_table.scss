@@ -1,0 +1,89 @@
+// Общие стили таблиц результатов: числа справа, моноширинные цифры,
+// на телефоне (< 600px) строки превращаются в карточки без горизонтальной прокрутки.
+@mixin result-table {
+  .rt {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--text-body-sm);
+    line-height: var(--leading-body-sm);
+  }
+
+  .rt caption {
+    padding: 0 0 var(--spacing-8);
+    color: var(--color-pale-stone);
+    text-align: left;
+  }
+
+  .rt th,
+  .rt td {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--color-ash-stroke);
+    overflow-wrap: anywhere;
+    vertical-align: top;
+  }
+
+  .rt th {
+    color: var(--color-pale-stone);
+    font-weight: var(--font-weight-regular);
+    text-align: left;
+  }
+
+  .rt .num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .rt thead th.num {
+    text-align: right;
+  }
+
+  @media (max-width: 599px) {
+    .rt,
+    .rt tbody,
+    .rt tr,
+    .rt td,
+    .rt th[scope='row'] {
+      display: block;
+      width: 100%;
+    }
+
+    .rt thead {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+    }
+
+    .rt tr {
+      padding: 8px 0;
+      border-bottom: 1px solid var(--color-ash-stroke);
+    }
+
+    .rt th,
+    .rt td {
+      display: flex;
+      justify-content: space-between;
+      gap: var(--spacing-16);
+      padding: 4px 12px;
+      border-bottom: 0;
+      text-align: right;
+    }
+
+    .rt td::before,
+    .rt th[scope='row']::before {
+      flex: none;
+      color: var(--color-pale-stone);
+      content: attr(data-label);
+      text-align: left;
+    }
+
+    .rt th[scope='row'] {
+      color: var(--color-bone);
+    }
+
+    .rt caption {
+      display: block;
+    }
+  }
+}
