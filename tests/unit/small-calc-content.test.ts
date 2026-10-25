@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   converterContent,
   dogonContent,
+  freebetContent,
   marginContent,
   sumOddsContent,
   type SmallCalcContent,
@@ -12,6 +13,7 @@ const PAGES: [string, () => SmallCalcContent][] = [
   ['сложение коэффициентов', sumOddsContent],
   ['догон', dogonContent],
   ['конвертер', converterContent],
+  ['фрибет', freebetContent],
 ]
 
 const FORBIDDEN = [
@@ -26,6 +28,9 @@ const FORBIDDEN = [
   'верный способ',
   'прогноз',
 ]
+
+// Фрибет: без названий БК, бонусов и условий конкретных букмекеров (ТЗ, шаг 14).
+const FREEBET_FORBIDDEN = ['бонус', 'промокод', 'акци', 'выгодно', 'бесплатные деньги']
 
 /** Рендерящийся текст: лид, разделы и FAQ (без формы и таблиц). */
 function visibleText(c: SmallCalcContent): string {
@@ -76,5 +81,20 @@ describe('числа в примерах берутся из движка', () =
 
   it('догон: шанс восьми проигрышей подряд при 50 % — 0,39 %', () => {
     expect(visibleText(dogonContent())).toContain('0,39')
+  })
+})
+
+describe('фрибет', () => {
+  const text = visibleText(freebetContent())
+
+  it('числа из функции: 1 000, 2,00, маржа 5 %', () => {
+    for (const s of ['1\u00A0000,00', '476,19', '47,62', '500,00', '2\u00A0000,00', '952,38']) {
+      expect(text).toContain(s)
+    }
+  })
+
+  it('нет бонусов, акций, промокодов', () => {
+    const lower = text.toLowerCase()
+    for (const bad of FREEBET_FORBIDDEN) expect(lower).not.toContain(bad)
   })
 })

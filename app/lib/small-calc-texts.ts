@@ -121,6 +121,21 @@ export function parseSteps(
   return value >= 1 && value <= 20 ? { ok: true, value } : { ok: false, empty: false }
 }
 
+export const FREEBET_MARGIN_ERRORS = {
+  empty: 'Введите маржу, например 5',
+  invalid_format: 'Нужно число в процентах, например 5 или 4,5',
+  margin_too_precise: 'Не больше двух знаков после запятой',
+  margin_out_of_range: 'Маржа — от 0 до 30 %',
+} as const
+
+export const FREEBET_TYPES = [
+  { value: 'winnings_only', label: 'Возвращается только выигрыш' },
+  { value: 'with_stake', label: 'Выигрыш вместе со ставкой' },
+] as const
+
+export const FREEBET_FORMULA =
+  'Вероятность = 1 / (коэффициент × (1 + маржа)). Ожидаемая ценность = выигрыш при заходе × вероятность. Это оценка по формуле, а не обещание выигрыша.'
+
 export interface SmallCalcLink {
   path: string
   title: string
@@ -143,6 +158,11 @@ export const SMALL_CALC_LINKS: readonly SmallCalcLink[] = [
     path: '/kalkulyatory/dogon/',
     title: 'Калькулятор догона',
     description: 'Арифметика догона: следующая ставка и рост ставок. Есть предупреждение о риске.',
+  },
+  {
+    path: '/kalkulyatory/fribet/',
+    title: 'Калькулятор фрибета',
+    description: 'Выигрыш при заходе и ожидаемая ценность фрибета с учётом маржи.',
   },
   {
     path: '/kalkulyatory/konverter-koefficientov/',

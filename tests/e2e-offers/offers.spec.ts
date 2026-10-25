@@ -404,6 +404,27 @@ test.describe('офферы: страницы без рекламы и защи�
     }
   })
 
+  test('фрибет: блок офферов виден под результатом с «Реклама» и erid', async ({ page }) => {
+    await withCountry(page, 'RU')
+    await page.goto(`${ON}/kalkulyatory/fribet/`)
+    await page.waitForLoadState('networkidle')
+    await page.getByLabel(/Сумма фрибета/i).fill('1000')
+    await page.getByLabel(/Минимальный коэффициент/i).fill('2,00')
+    const result = page.getByTestId('freebet-payout')
+    await expect(result).toBeVisible()
+    const b = block(page)
+    await expect(b).toBeVisible()
+    await expect(b).toHaveAttribute('aria-label', 'Реклама')
+    const ok = offer('ok')
+    const c = card(page, ok)
+    await expect(c).toHaveCount(1)
+    await expect(c.getByTestId('offer-label')).toHaveText('Реклама')
+    await expect(c.getByTestId('offer-erid')).toContainText(`erid: ${ok.erid}`)
+    const resultBox = await result.boundingBox()
+    const blockBox = await b.boundingBox()
+    expect(blockBox!.y).toBeGreaterThanOrEqual(resultBox!.y + resultBox!.height - 1)
+  })
+
   test('атака: виджет в чужом iframe не рекламирует и не открывает сайт во фрейме', async ({
     page,
     context,

@@ -114,6 +114,7 @@ export const SMALL_CALCULATORS = [
   { slug: 'slozhenie-koefficientov', title: 'Сложение коэффициентов' },
   { slug: 'dogon', title: 'Калькулятор догона' },
   { slug: 'konverter-koefficientov', title: 'Конвертер коэффициентов' },
+  { slug: 'fribet', title: 'Калькулятор фрибета' },
 ] as const
 
 const SMALL_CALCULATOR_PAGES: readonly SitePage[] = [
