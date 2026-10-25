@@ -1,0 +1,11 @@
+[
+  {
+    "slug": "soon",
+    "name": "Вымышленный БК",
+    "systemRules": {
+      "stakeSplit": "per_combination",
+      "voidRule": "Вымышленное правило."
+    },
+    "checkedAt": "2026-05-10"
+  }
+]

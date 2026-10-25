@@ -1,0 +1,154 @@
+name: Scheduled
+
+# Регулярные проверки сопровождения (шаг 15). Без выпуска и без секретов деплоя.
+#   audit — понедельник 06:00 МСК (03:00 UTC): npm run audit:prod (продакшен-зависимости, исключения — security/audit-exceptions.json).
+#           Провал — открывается или дополняется задача (issue с меткой security).
+#   daily — каждый день 07:00 МСК (04:00 UTC): офферы, правила БК, трекинговые ссылки.
+#           Любой провал — провал всего запуска; GitHub шлёт уведомление.
+# GitHub запускает cron с задержкой (иногда на десятки минут). Вручную — workflow_dispatch
+# (запускаются обе задачи). Расписания работают только с ветки по умолчанию.
+# Почему проверки не в ci.yml и что делать при провале — README, раздел «Сопровождение».
+
+on:
+  schedule:
+    - cron: '0 3 * * 1'
+    - cron: '0 4 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: scheduled
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    name: npm audit (high и critical)
+    if: github.event_name == 'workflow_dispatch' || github.event.schedule == '0 3 * * 1'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      # Только чтобы открыть или дополнить задачу при провале аудита. Больше прав нет.
+      issues: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      - name: npm audit (продакшен-зависимости, high и critical)
+        # Падает при уязвимостях high и critical, кроме записей с причиной и сроком в
+        # security/audit-exceptions.json. Полный отчёт (с dev) — для сведения, не валит.
+        # Вывод сохраняем для задачи (см. следующий шаг).
+        run: |
+          set -Eeuo pipefail
+          npm audit --audit-level=high > "$RUNNER_TEMP/audit-full.txt" 2>&1 || true
+          npm run --silent audit:prod 2>&1 | tee "$RUNNER_TEMP/audit.txt"
+
+      - name: Задача человеку при провале аудита
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -Eeuo pipefail
+          body="$RUNNER_TEMP/issue.md"
+          {
+            echo "Еженедельный \`npm audit --audit-level=high\` нашёл уязвимости high или critical"
+            echo "(или не смог выполниться — тогда см. вывод ниже)."
+            echo
+            echo "Запуск: $RUN_URL"
+            echo
+            echo "Что делать: README, раздел «Сопровождение», подраздел «Уязвимости»."
+            echo "Закрыть задачу можно после обновления зависимостей и зелёного запуска."
+            echo
+            echo "Вывод npm audit:"
+            echo
+            echo '```'
+            head -c 50000 "$RUNNER_TEMP/audit.txt"
+            echo
+            echo '```'
+          } >"$body"
+          gh label create security --repo "$REPO" --color B60205 \
+            --description "Уязвимости и безопасность зависимостей" --force >/dev/null
+          number=$(gh issue list --repo "$REPO" --state open --label security \
+            --search 'npm audit in:title' --json number --jq '.[0].number // empty')
+          if [[ -n $number ]]; then
+            gh issue comment "$number" --repo "$REPO" --body-file "$body"
+            echo "Обновлена задача #$number"
+          else
+            gh issue create --repo "$REPO" --label security \
+              --title "npm audit: уязвимости high или critical" --body-file "$body"
+          fi
+
+  daily:
+    name: Ежедневно (офферы, правила БК, трекинговые ссылки)
+    if: github.event_name == 'workflow_dispatch' || github.event.schedule == '0 4 * * *'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - id: install
+        run: npm ci
+
+      # Все проверки идут даже после провала предыдущей: человек видит все проблемы разом.
+      # Каждая пропускается только если не установлены зависимости (шаг install не прошёл).
+      - id: offers
+        name: Офферы (erid, рекламодатель, домен, стоп-слова, срок ≤ 7 дней)
+        if: always() && steps.install.outcome == 'success'
+        run: npm run check:offers
+
+      - id: rules
+        name: Правила БК старше 180 дней
+        if: always() && steps.install.outcome == 'success'
+        run: npm run check:rules
+
+      - id: external
+        name: Трекинговые ссылки видимых офферов (--external)
+        if: always() && steps.install.outcome == 'success'
+        run: node scripts/check-links.ts --external
+
+      - name: Итог
+        if: always()
+        env:
+          INSTALL: ${{ steps.install.outcome }}
+          OFFERS: ${{ steps.offers.outcome }}
+          RULES: ${{ steps.rules.outcome }}
+          EXTERNAL: ${{ steps.external.outcome }}
+        run: |
+          set -Eeuo pipefail
+          bad=0
+          {
+            echo "### Ежедневные проверки"
+            echo
+            echo "| Проверка | Результат |"
+            echo "| --- | --- |"
+          } >>"$GITHUB_STEP_SUMMARY"
+          for pair in "npm ci=$INSTALL" "check:offers=$OFFERS" "check:rules=$RULES" \
+            "check-links --external=$EXTERNAL"; do
+            name=${pair%%=*}
+            result=${pair#*=}
+            echo "| $name | $result |" >>"$GITHUB_STEP_SUMMARY"
+            if [[ $result != success ]]; then bad=1; fi
+          done
+          if [[ $bad == 1 ]]; then
+            echo "::error::Есть проблемы: см. результаты шагов выше и README, раздел «Сопровождение»"
+            exit 1
+          fi

@@ -1,0 +1,11 @@
+[
+  {
+    "slug": "edge",
+    "name": "Вымышленный БК",
+    "systemRules": {
+      "stakeSplit": "per_combination",
+      "voidRule": "Вымышленное правило."
+    },
+    "checkedAt": "2026-04-28"
+  }
+]

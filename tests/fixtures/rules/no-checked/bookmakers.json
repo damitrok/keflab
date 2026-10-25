@@ -1,0 +1,11 @@
+[
+  {
+    "slug": "nochk",
+    "name": "Вымышленный БК",
+    "systemRules": {
+      "stakeSplit": "per_combination",
+      "voidRule": "Вымышленное правило."
+    },
+    "checkedAt": null
+  }
+]

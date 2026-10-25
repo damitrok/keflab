@@ -1,0 +1,8 @@
+[
+  {
+    "id": "GHSA-86w9-cpqp-85rv",
+    "package": "node-forge",
+    "reason": "Транзитивно через nuxt → nitropack → listhen: генерация локального HTTPS-сертификата для nuxt dev. В продакшен-сборку (.output/server/node_modules) не попадает. Исправленной версии node-forge на 2026-10-26 нет.",
+    "reviewBy": "2027-01-31"
+  }
+]
