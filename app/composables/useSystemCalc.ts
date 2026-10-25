@@ -16,6 +16,9 @@ import {
   type SystemResult,
 } from '~/lib/calc'
 import { reportError } from '~/lib/report-error'
+import type { Snapshot } from '~/lib/snapshot'
+
+export type { Snapshot }
 
 export const MIN_EVENTS = 3
 
@@ -39,13 +42,11 @@ export interface SystemCalcOptions {
   k?: number
   /** Ключ localStorage; null — не сохранять. */
   storageKey?: string | null
-}
-
-interface Snapshot {
-  stakeInput: string
-  stakeMode: StakeMode
-  k: number
-  events: { odds: string; status: EventStatus }[]
+  /**
+   * Начальное состояние (например, из ссылки). Применяется сразу, в том числе
+   * на сервере, и отменяет восстановление из localStorage.
+   */
+  initial?: Snapshot | null
 }
 
 /** С этого числа событий пересчёт идёт с паузой после ввода, чтобы не подвешивать телефон. */
@@ -106,6 +107,12 @@ export function useSystemCalc(options: SystemCalcOptions = {}) {
   const stakeMode = ref<StakeMode>('total')
   const k = ref(initialK)
   const events = ref<EventInput[]>(Array.from({ length: initialN }, blankEvent))
+  if (options.initial) {
+    stakeInput.value = options.initial.stakeInput
+    stakeMode.value = options.initial.stakeMode
+    events.value = options.initial.events.map((e) => ({ id: nextId++, ...e }))
+    k.value = options.initial.k
+  }
   /** Сообщение для пользователя после автоматических изменений (например, смены K). */
   const notice = ref<string | null>(null)
 
@@ -253,7 +260,13 @@ export function useSystemCalc(options: SystemCalcOptions = {}) {
       const saved = readStorage(storageKey)
       // Сохранённое состояние подставляем, только если оно подходит к странице
       // (на /sistema-3-iz-5/ не открываем чужую систему 2 из 3).
-      if (saved && (options.n === undefined || saved.events.length === initialN)) restore(saved)
+      if (
+        !options.initial &&
+        saved &&
+        (options.n === undefined || saved.events.length === initialN)
+      ) {
+        restore(saved)
+      }
       watch(snapshot, (s) => writeStorage(storageKey, s))
     })
   }
@@ -282,6 +295,8 @@ export function useSystemCalc(options: SystemCalcOptions = {}) {
     setK,
     clearAll,
     restore,
+    /** Текущий «снимок» ввода (после паузы для 12+ событий). */
+    snapshot,
   }
 }
 

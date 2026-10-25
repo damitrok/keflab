@@ -416,7 +416,9 @@ test.describe('калькулятор системы', () => {
     await expect
       .poll(() => page.evaluate(() => localStorage.getItem('keflab:system:v1')))
       .not.toBeNull()
-    await page.reload()
+    // Адрес уже содержит расчёт (шаг 4) — открываем чистый адрес, чтобы
+    // восстановление шло именно из localStorage.
+    await page.goto('/')
     await page.waitForLoadState('networkidle')
     await expect(stakeInput(page)).toHaveValue(/3[\s\u00a0]?000/)
     await expect(oddsInput(page, 1)).toHaveValue(/1[.,]80/)

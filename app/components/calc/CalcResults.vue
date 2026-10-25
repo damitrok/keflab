@@ -173,6 +173,8 @@ function onKeydown(e: KeyboardEvent, i: number) {
         <CompareTable v-if="compare" :compare="compare" :k="okResult.shape.k" :n="eventsCount" />
       </div>
     </template>
+    <!-- Дополнительные действия с расчётом, например «Скопировать ссылку». -->
+    <slot />
   </section>
 </template>
 

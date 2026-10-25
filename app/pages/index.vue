@@ -1,7 +1,18 @@
 <script setup lang="ts">
 import CalcStaticExample from '~/components/calc/CalcStaticExample.vue'
 import SystemCalculator from '~/components/calc/SystemCalculator.vue'
+import { hasShareParams } from '~/lib/share-state'
 import { NO_JS_TEXT } from '~/lib/texts'
+
+const route = useRoute()
+const { public: site } = useRuntimeConfig()
+
+// Страница с параметрами расчёта — копия главной: не индексировать,
+// canonical — на адрес без параметров.
+useHead({
+  link: [{ rel: 'canonical', href: `${site.siteUrl}/` }],
+  meta: hasShareParams(route.query) ? [{ name: 'robots', content: 'noindex, follow' }] : [],
+})
 
 useSeoMeta({
   title: 'Калькулятор системы ставок',
