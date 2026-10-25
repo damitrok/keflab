@@ -30,7 +30,7 @@ function parsePages() {
 
 function gitDate(file) {
   try {
-    const out = execFileSync('git', ['log', '-1', '--format=%cs', '--', file], {
+    const out = execFileSync('git', ['log', '-1', '--format=%cs', '--', `:(literal)${file}`], {
       cwd: root,
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'ignore'],
