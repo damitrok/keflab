@@ -244,3 +244,23 @@
 - 2026-10-25, шаг 5: скрипты-гейты — `scripts/gates/*.mjs` (общий запуск
   сервера и видимый текст — `lib-server.mjs`); стоп-слова из `data/site.json`
   проверяются по видимому тексту всех страниц (`stopwords.mjs`).
+- 2026-10-25, шаг 6 (решение агента): главная НЕ предсобирается — Nitro
+  отдаёт предсобранный файл для любого query (без noindex и расчёта из
+  ссылки), а middleware до статики не доходит (проверено). Остальные страницы
+  предсобираются из `shared/site-pages.ts` (реестр: новые страницы добавлять
+  туда). Отдачу главной при упавшем Node решаем на шаге 8 кэшем Nginx
+  (`proxy_cache_use_stale`).
+- 2026-10-25, шаг 6: SEO страницы — `usePageSeo()` (title до 47 символов +
+  суффикс « · keflab.ru», description до 160, OG, canonical, JSON-LD:
+  BreadcrumbList кроме главной, WebApplication на калькуляторах, FAQPage —
+  только из видимого FAQ). 301 на слеш — Nitro-плагин
+  `server/plugins/trailing-slash.ts` (работает и для статики), `/go/` не
+  трогает. 404/410 — `app/error.vue`, удалённые адреса — `GONE_PATHS`.
+  sitemap.xml/robots.txt — серверные маршруты, lastmod — дата коммита
+  страницы (`scripts/gen-lastmod.mjs` в prebuild → `shared/lastmod.json`,
+  файл коммитится). HTTPS-редирект и сжатие HTML на лету — Nginx (шаг 8).
+  Метатеги подтверждения для предсобранных страниц берутся при сборке —
+  переменные окружения нужны на этапе `npm run build`.
+- 2026-10-25, шаг 6: ленивые калькуляторы (ниже первого экрана) —
+  `hydrate-on-visible` с `rootMargin: '400px'`; признак готовности —
+  `data-ready="true"` на `.system-calculator` (e2e ждёт его перед вводом).

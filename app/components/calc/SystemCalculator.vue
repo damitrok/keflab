@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { onMounted, ref } from 'vue'
 import { useShareQuery, useShareState } from '~/composables/useShareState'
 import { useSystemCalc } from '~/composables/useSystemCalc'
 import type { DecodeResult } from '~/lib/share-state'
@@ -28,10 +29,14 @@ const calc = useSystemCalc({
   initial: decoded.kind === 'ok' ? decoded.snapshot : null,
 })
 const share = props.share ? useShareState(calc, decoded) : null
+
+// Признак, что калькулятор ожил (гидратирован): до этого ввод не считается.
+const ready = ref(false)
+onMounted(() => (ready.value = true))
 </script>
 
 <template>
-  <div class="system-calculator">
+  <div class="system-calculator" :data-ready="ready ? 'true' : undefined">
     <p v-if="share?.notice.value" data-testid="share-notice" role="status" class="notice">
       {{ share.notice.value }}
     </p>

@@ -7,9 +7,9 @@
       "numberOfRuns": 3,
       "url": [
         "http://localhost:3101/",
+        "http://localhost:3101/kalkulyator-ekspressa/",
+        "http://localhost:3101/chto-takoe-sistema-v-stavkah/",
         "http://localhost:3101/o-proekte/",
-        "http://localhost:3101/reklama/",
-        "http://localhost:3101/politika-konfidencialnosti/",
         "http://localhost:3101/otvetstvennaya-igra/"
       ],
       "settings": {
@@ -18,12 +18,27 @@
     },
     "assert": {
       "assertions": {
-        "categories:performance": ["error", { "minScore": 0.9, "aggregationMethod": "median-run" }],
+        "categories:performance": [
+          "error",
+          {
+            "minScore": 0.9,
+            "aggregationMethod": "median-run"
+          }
+        ],
         "categories:accessibility": [
           "error",
-          { "minScore": 0.95, "aggregationMethod": "median-run" }
+          {
+            "minScore": 0.95,
+            "aggregationMethod": "median-run"
+          }
         ],
-        "categories:seo": ["error", { "minScore": 0.95, "aggregationMethod": "median-run" }]
+        "categories:seo": [
+          "error",
+          {
+            "minScore": 0.95,
+            "aggregationMethod": "median-run"
+          }
+        ]
       }
     },
     "upload": {

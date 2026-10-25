@@ -2,20 +2,20 @@
 import Breadcrumbs from '~/components/Breadcrumbs.vue'
 import FaqList from '~/components/article/FaqList.vue'
 import SystemTypesTable from '~/components/article/SystemTypesTable.vue'
+import { articleFaq } from '~/components/article/faq'
 import { articleExamples } from '~/components/article/examples'
 import CombinationsTable from '~/components/calc/results/CombinationsTable.vue'
-import SystemCalculator from '~/components/calc/SystemCalculator.vue'
 
-const { public: site } = useRuntimeConfig()
+const breadcrumbs = [{ label: 'Главная', to: '/' }, { label: 'Что такое система в ставках' }]
 
-useHead({
-  link: [{ rel: 'canonical', href: `${site.siteUrl}/chto-takoe-sistema-v-stavkah/` }],
-})
-
-useSeoMeta({
-  title: 'Что такое система в ставках: простое объяснение',
+usePageSeo({
+  path: '/chto-takoe-sistema-v-stavkah/',
+  title: 'Что такое система в ставках',
   description:
     'Как устроена система ставок: комбинации, деление ставки, выплата, возврат и половинные исходы. Таблица типов систем и мини-калькулятор.',
+  breadcrumbs,
+  type: 'article',
+  faq: articleFaq,
 })
 
 // Все числа примеров считает движок (см. article/examples.ts).
@@ -25,9 +25,7 @@ const ex = articleExamples()
 <template>
   <article class="article">
     <!-- TODO(text): текст написан ИИ, вычитывает человек -->
-    <Breadcrumbs
-      :items="[{ label: 'Главная', to: '/' }, { label: 'Что такое система в ставках' }]"
-    />
+    <Breadcrumbs :items="breadcrumbs" />
 
     <div class="prose">
       <h1>Что такое система в ставках</h1>
@@ -200,55 +198,18 @@ const ex = articleExamples()
       </p>
     </div>
 
-    <SystemCalculator :share="false" :storage-key="null" />
+    <LazyCalcSystemCalculator
+      :hydrate-on-visible="{ rootMargin: '400px' }"
+      :share="false"
+      :storage-key="null"
+    />
 
     <div class="prose article__faq">
       <h2>Частые вопросы</h2>
       <FaqList>
-        <details>
-          <summary>Чем система отличается от экспресса?</summary>
-          <p>
-            В экспрессе все события входят в одну комбинацию, и один проигрыш обнуляет ставку. В
-            системе комбинаций несколько, и проигравшее событие обнуляет только те из них, где оно
-            есть. Платой за это становится деление ставки на части.
-          </p>
-        </details>
-        <details>
-          <summary>Сколько событий должно зайти в системе 2 из 3?</summary>
-          <p>
-            Выплата появляется при двух зашедших событиях из трёх: тогда играет одна комбинация. При
-            трёх зашедших играют все три комбинации. Окупится ли ставка, зависит от коэффициентов,
-            подробности есть в таблице выше.
-          </p>
-        </details>
-        <details>
-          <summary>Что значит «ставка на всю систему»?</summary>
-          <p>
-            Это общая сумма, которую вы вносите. Она делится на все комбинации поровну. Если
-            указывается ставка на комбинацию, общая сумма равна ей, умноженной на число комбинаций.
-          </p>
-        </details>
-        <details>
-          <summary>Как считается возврат ставки на событие?</summary>
-          <p>
-            Событие с возвратом получает коэффициент 1. Комбинация с ним считается по остальным
-            событиям, как будто этого события в ней не было.
-          </p>
-        </details>
-        <details>
-          <summary>Калькулятор подскажет, какую систему выбрать?</summary>
-          <p>
-            Нет. Он считает результат для введённых вами коэффициентов и исходов и ничего не
-            предсказывает. Выбор событий и суммы остаётся за вами.
-          </p>
-        </details>
-        <details>
-          <summary>Почему сумма по комбинациям иногда отличается на копейки?</summary>
-          <p>
-            Выплата по каждой комбинации округляется до копеек отдельно, а итог считается точно и
-            округляется один раз. Поэтому итоговая сумма — главное число, а строки таблицы
-            справочные.
-          </p>
+        <details v-for="item in articleFaq" :key="item.question">
+          <summary>{{ item.question }}</summary>
+          <p>{{ item.answer }}</p>
         </details>
       </FaqList>
       <p class="article__links">

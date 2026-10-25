@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
+import { articleFaq } from '../../app/components/article/faq'
 
 const SOURCE = readFileSync(
   new URL('../../app/pages/chto-takoe-sistema-v-stavkah.vue', import.meta.url),
@@ -23,7 +24,8 @@ export function countWords(text: string): number {
 
 describe('статья «Что такое система в ставках»', () => {
   it('1000–1500 слов видимого текста без таблицы и калькулятора', () => {
-    const words = countWords(articleText(SOURCE))
+    const faq = articleFaq.map((q) => `${q.question} ${q.answer}`).join(' ')
+    const words = countWords(`${articleText(SOURCE)} ${faq}`)
     console.info(`слов в статье: ${words}`)
     expect(words).toBeGreaterThanOrEqual(1000)
     expect(words).toBeLessThanOrEqual(1500)
@@ -46,11 +48,13 @@ describe('статья «Что такое система в ставках»', 
       SOURCE.match(/<NuxtLink to="\/kalkulyator-ekspressa\/">Калькулятор экспресса<\/NuxtLink>/g),
     ).toHaveLength(2)
     expect(SOURCE).toContain('TODO(text): текст написан ИИ, вычитывает человек')
-    expect(SOURCE).toContain(':share="false" :storage-key="null"')
+    expect(SOURCE).toContain(':share="false"')
+    expect(SOURCE).toContain(':storage-key="null"')
   })
 
   it('нет запрещённых слов и обещаний', () => {
-    const text = articleText(SOURCE).toLowerCase()
+    const faq = articleFaq.map((q) => `${q.question} ${q.answer}`).join(' ')
+    const text = `${articleText(SOURCE)} ${faq}`.toLowerCase()
     for (const bad of [
       'выигрывайте',
       'гарантир',

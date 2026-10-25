@@ -1,3 +1,14 @@
+<script setup lang="ts">
+// Подтверждение прав в Вебмастере и Search Console: только непустые значения.
+const { public: site } = useRuntimeConfig()
+const verification = [
+  { name: 'yandex-verification', content: site.yandexVerification },
+  { name: 'google-site-verification', content: site.googleVerification },
+].filter((m) => m.content)
+
+useHead({ meta: verification })
+</script>
+
 <template>
   <div class="layout">
     <a class="skip-link" href="#content">Перейти к содержанию</a>

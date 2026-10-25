@@ -14,7 +14,9 @@
     "test:e2e": "playwright test",
     "check:data": "node scripts/check-data.ts",
     "check:links": "node scripts/check-links.ts",
-    "lhci": "lhci autorun"
+    "lhci": "lhci autorun",
+    "check:seo": "node scripts/check-seo.mjs",
+    "prebuild": "node scripts/gen-lastmod.mjs"
   },
   "dependencies": {
     "@fontsource-variable/geist": "^5.3.0",

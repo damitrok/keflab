@@ -18,6 +18,9 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
+        with:
+          # Полная история нужна для lastmod в sitemap.xml (дата коммита страницы).
+          fetch-depth: 0
       - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
@@ -31,6 +34,8 @@ jobs:
       - run: npm run build
       - name: Внешние ссылки только из allowlist
         run: npm run check:links
+      - name: 'SEO: sitemap, title, description, canonical, микроразметка'
+        run: npm run check:seo
       - uses: actions/upload-artifact@v7
         if: github.ref == 'refs/heads/main'
         with:

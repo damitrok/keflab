@@ -5,19 +5,20 @@ import { hasShareParams } from '~/lib/share-state'
 import { NO_JS_TEXT } from '~/lib/texts'
 
 const route = useRoute()
-const { public: site } = useRuntimeConfig()
 
 // Страница с параметрами расчёта — копия главной: не индексировать,
-// canonical — на адрес без параметров.
-useHead({
-  link: [{ rel: 'canonical', href: `${site.siteUrl}/` }],
-  meta: hasShareParams(route.query) ? [{ name: 'robots', content: 'noindex, follow' }] : [],
-})
-
-useSeoMeta({
+// canonical — на адрес без параметров (его ставит usePageSeo).
+usePageSeo({
+  path: '/',
   title: 'Калькулятор системы ставок',
   description:
     'Калькулятор системы ставок: возврат и прибыль, разбивка по комбинациям, сценарии «если зайдут m из N» и сравнение с экспрессом и одиночными.',
+  noindex: hasShareParams(route.query),
+  webApp: {
+    name: 'Калькулятор системы ставок',
+    description:
+      'Возврат и прибыль по системе ставок, разбивка по комбинациям и сценарии «если зайдут m из N».',
+  },
 })
 </script>
 

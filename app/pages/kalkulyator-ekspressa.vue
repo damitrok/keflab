@@ -2,19 +2,20 @@
 import ExpressCalculator from '~/components/calc/ExpressCalculator.vue'
 import { NO_JS_TEXT } from '~/lib/texts'
 
-const { public: site } = useRuntimeConfig()
+const breadcrumbs = [{ label: 'Главная', to: '/' }, { label: 'Калькулятор экспресса' }]
 
-useHead({
-  link: [{ rel: 'canonical', href: `${site.siteUrl}/kalkulyator-ekspressa/` }],
-})
-
-useSeoMeta({
-  title: 'Калькулятор экспресса: общий коэффициент и возврат',
+usePageSeo({
+  path: '/kalkulyator-ekspressa/',
+  title: 'Калькулятор экспресса: коэффициент и возврат',
   description:
     'Калькулятор экспресса: общий коэффициент, возврат и прибыль, статусы событий с возвратом и половинами, расчёт «если одно событие вернут».',
+  breadcrumbs,
+  webApp: {
+    name: 'Калькулятор экспресса',
+    description:
+      'Общий коэффициент экспресса, возврат и прибыль с учётом возвратов и половинных исходов.',
+  },
 })
-
-const breadcrumbs = [{ label: 'Главная', to: '/' }, { label: 'Калькулятор экспресса' }]
 </script>
 
 <template>

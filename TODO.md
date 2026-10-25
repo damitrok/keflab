@@ -65,3 +65,21 @@
       вычитывает человек».
 - [ ] Посмотреть навигацию в шапке («Система / Экспресс / Разбор») — если
       нужны другие названия, поменять в `app/components/SiteHeader.vue`.
+
+## Шаг 6. Техническое SEO
+
+- [ ] Принять шаг: `npm run build && npm run check:seo`; открыть
+      http://localhost:3000/sitemap.xml и /robots.txt; /reklama → 301 на
+      /reklama/; /net-takoy-stranicy/ → страница 404. Lighthouse (телефон):
+      Performance 0,96–0,98, Accessibility и SEO — 1 на пяти ключевых
+      страницах.
+- [ ] **Проверить микроразметку в валидаторе Яндекса**
+      (webmaster.yandex.ru/tools/microtest/) — нужен ваш аккаунт; вставить
+      HTML страниц `/`, `/kalkulyator-ekspressa/`,
+      `/chto-takoe-sistema-v-stavkah/` (из `.output/public/…/index.html` или
+      с прода после шага 8). Локально JSON-LD проверяет `check:seo`.
+- [ ] Получить коды подтверждения Яндекс Вебмастера и Google Search Console и
+      задать при сборке: `NUXT_PUBLIC_YANDEX_VERIFICATION`,
+      `NUXT_PUBLIC_GOOGLE_VERIFICATION` (предсобранные страницы берут их на
+      этапе `npm run build`).
+- [ ] Картинка для соцсетей (og:image, 1200×630, WebP/PNG) — сейчас её нет.

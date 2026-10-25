@@ -1,8 +1,8 @@
-# Gates: шаг 5 — калькулятор экспресса и разбор для новичков
+# Gates: шаг 6 — техническое SEO
 
-OWNS: app/**, tests/**, scripts/gates/**
+OWNS: app/**, server/**, shared/**, scripts/**, tests/**, nuxt.config.ts, package.json, lighthouserc.json, .github/**
 
-Scope: /kalkulyator-ekspressa/ (поля и статусы, общий коэффициент, возврат, «если одно событие вернут») и /chto-takoe-sistema-v-stavkah/ (1 000–1 500 слов, мини-калькулятор, таблица систем из движка, ошибки новичков, FAQ), хлебные крошки и перекрёстные ссылки; гейты шагов 1–4 — в истории git.
+Scope: предсборка статических страниц и SSR для страниц с параметрами, title/description/OG/canonical, robots.txt, sitemap.xml с lastmod, 404 и 410, BreadcrumbList/FAQPage/WebApplication, один формат адресов со слешем и 301, метатеги подтверждения из окружения, скорость; гейты шагов 1–5 — в истории git.
 
 - [x] G1: линтер проходит
   CHECK: npm run lint && echo GATE_LINT_OK
@@ -14,37 +14,37 @@ Scope: /kalkulyator-ekspressa/ (поля и статусы, общий коэф�
   EXPECT: GATE_TYPECHECK_OK
   EVIDENCE: automatic-evidence=v1; definition-sha256=b55b7c8e520339601268674b6c62c81c5cacdb718784d554a415fcb725729f4c; exit=0; EXPECT=matched; output-sha256=f8a32e4b14dc4337629dcd24f60c8f4d15d8c76e0724450727ed7a03fa888cb4; output-bytes=62; shell=/bin/sh; cwd=/Users/dmitriymitrokhin/Desktop/my-project/betting; path=f54d7d698ebf/18 entries
 
-- [x] G3: юнит-тесты с порогом покрытия проходят
+- [x] G3: юнит-тесты (включая sitemap, 301, JSON-LD) проходят
   CHECK: npm test && echo GATE_UNIT_OK
   EXPECT: GATE_UNIT_OK
-  EVIDENCE: automatic-evidence=v1; definition-sha256=278326bc14f1fc435a51db07db8624860d16173663ef6c5591119aeb225f8f38; exit=0; EXPECT=matched; output-sha256=c97a0710549ea9324a1db2bb6ee9f68e4560adc417e43421254314120a69d514; output-bytes=1135; shell=/bin/sh; cwd=/Users/dmitriymitrokhin/Desktop/my-project/betting; path=f54d7d698ebf/18 entries
+  EVIDENCE: automatic-evidence=v1; definition-sha256=278326bc14f1fc435a51db07db8624860d16173663ef6c5591119aeb225f8f38; exit=0; EXPECT=matched; output-sha256=90581979c428a3870af6e17be13f45de0d9f6d6a68b2386f8a53d8d749088f27; output-bytes=1135; shell=/bin/sh; cwd=/Users/dmitriymitrokhin/Desktop/my-project/betting; path=f54d7d698ebf/18 entries
 
-- [x] G4: числа таблицы типов систем совпадают с функциями шага 2 (тест)
-  CHECK: npx vitest run tests/unit/system-table.test.ts && echo GATE_TABLE_OK
-  EXPECT: GATE_TABLE_OK
-  EVIDENCE: automatic-evidence=v1; definition-sha256=97e38afea604411dc83474f2a0307f5b3e79edf19e0b56725652fbcdc80464c2; exit=0; EXPECT=matched; output-sha256=b8eb5a77174e350df029d727a4a1c8dbdb266f7624dc879c55a66d24590b0f89; output-bytes=227; shell=/bin/sh; cwd=/Users/dmitriymitrokhin/Desktop/my-project/betting; path=f54d7d698ebf/18 entries
-
-- [x] G5: сборка и проверка внешних ссылок проходят
+- [x] G4: сборка с предсборкой страниц и проверка внешних ссылок проходят
   CHECK: npm run build && npm run check:links && echo GATE_BUILD_OK
   EXPECT: GATE_BUILD_OK
-  EVIDENCE: automatic-evidence=v1; definition-sha256=ad3ac20e2f8c7659a16a201309363f82a8ee4d07697349e11427bd8d572c5ed8; exit=0; EXPECT=matched; output-sha256=101b47fa0706f4a8eae25603c8aae0fda92d16073a1456c2262941490f8f3255; output-bytes=19452; shell=/bin/sh; cwd=/Users/dmitriymitrokhin/Desktop/my-project/betting; path=f54d7d698ebf/18 entries
+  EVIDENCE: automatic-evidence=v1; definition-sha256=ad3ac20e2f8c7659a16a201309363f82a8ee4d07697349e11427bd8d572c5ed8; exit=0; EXPECT=matched; output-sha256=3ba7bc93103308bc1bc6f82882bfb59b8457683a0ae968d70d3b2f2463e35070; output-bytes=20955; shell=/bin/sh; cwd=/Users/dmitriymitrokhin/Desktop/my-project/betting; path=f54d7d698ebf/18 entries
 
-- [x] G6: SSR: у каждой новой страницы ровно один H1, хлебные крошки и ссылки на калькуляторы; в статье от 1 000 до 1 500 слов
-  CHECK: node scripts/gates/ssr-step5.mjs && echo GATE_SSR_STEP5_OK
-  EXPECT: GATE_SSR_STEP5_OK
-  EVIDENCE: automatic-evidence=v1; definition-sha256=57d58c7bcfdd9a64d29e003f171e63f7d31f1fcc24d2f221ddfb781370014467; exit=0; EXPECT=matched; output-sha256=13fd7ad19a01a5025267b5052b2144d295a06fa5a145c25604505feef1498de6; output-bytes=339; shell=/bin/sh; cwd=/Users/dmitriymitrokhin/Desktop/my-project/betting; path=f54d7d698ebf/18 entries
+- [x] G5: в sitemap все индексируемые страницы и ни одной с noindex; title уникальны и до 60 символов; description до 160; canonical, OG и JSON-LD корректны
+  CHECK: npm run check:seo && echo GATE_SEO_OK
+  EXPECT: GATE_SEO_OK
+  EVIDENCE: automatic-evidence=v1; definition-sha256=02a609cf37799a4465e56d5b2975655fd67d6122d56bd31247ed71fe1f41d7b1; exit=0; EXPECT=matched; output-sha256=91d4154407e4da53ae3503facf4be88daa756e09e5b8b4451892c6d36f7c5644; output-bytes=1223; shell=/bin/sh; cwd=/Users/dmitriymitrokhin/Desktop/my-project/betting; path=f54d7d698ebf/18 entries
 
-- [x] G7: e2e экспресса и статьи проходят
-  CHECK: npx playwright test tests/e2e/express tests/e2e/article && echo GATE_E2E_STEP5_OK
-  EXPECT: GATE_E2E_STEP5_OK
-  EVIDENCE: automatic-evidence=v1; definition-sha256=9b017d7555331db2537e886e44b9011c5cbb7e25a1d767ddeedb1e4fa86cdb31; exit=0; EXPECT=matched; output-sha256=06ecdf198bfea50d6387668d2fcdd8c330d3ac8674106cb5bb8c77fbedbf57a9; output-bytes=10241; shell=/bin/sh; cwd=/Users/dmitriymitrokhin/Desktop/my-project/betting; path=f54d7d698ebf/18 entries
+- [x] G6: проверка SEO ловит дубликат title, длинный title и noindex в sitemap (позитивный контроль)
+  CHECK: node scripts/check-seo.mjs --self-test && echo GATE_SEO_SELFTEST_OK
+  EXPECT: GATE_SEO_SELFTEST_OK
+  EVIDENCE: automatic-evidence=v1; definition-sha256=9d9ea52fd6962769fc48d2e0ec9ca018a97d3972f2bafd11a4c77b29593a20c9; exit=0; EXPECT=matched; output-sha256=623017e6c11438f550e177fd824037e1d522fb8f11fae1e5148a2454033b9783; output-bytes=1280; shell=/bin/sh; cwd=/Users/dmitriymitrokhin/Desktop/my-project/betting; path=f54d7d698ebf/18 entries
 
-- [x] G8: e2e всего сайта (регрессия шагов 1, 3, 4) проходят
+- [x] G7: e2e всего сайта (включая 301, 404, sitemap) проходят
   CHECK: npm run test:e2e && echo GATE_E2E_ALL_OK
   EXPECT: GATE_E2E_ALL_OK
-  EVIDENCE: automatic-evidence=v1; definition-sha256=8a51bae5a0e8c04dc3acb33e51b9c6736f20d2db217beea5c76c9cfd1410b16b; exit=0; EXPECT=matched; output-sha256=02e23bab66b855b1e2a8f7e1e73d4be2229bdf57393884cc27d1a3202cf3c602; output-bytes=39767; shell=/bin/sh; cwd=/Users/dmitriymitrokhin/Desktop/my-project/betting; path=f54d7d698ebf/18 entries
+  EVIDENCE: automatic-evidence=v1; definition-sha256=8a51bae5a0e8c04dc3acb33e51b9c6736f20d2db217beea5c76c9cfd1410b16b; exit=0; EXPECT=matched; output-sha256=77a93435b4dc9b8994b38d2c22173716c1ce9e9a5b8fbc61fd5ea12314b95b7c; output-bytes=45884; shell=/bin/sh; cwd=/Users/dmitriymitrokhin/Desktop/my-project/betting; path=f54d7d698ebf/18 entries
 
-- [x] G9: стоп-слова из data/site.json не встречаются в тексте страниц сайта
-  CHECK: node scripts/gates/stopwords.mjs && echo GATE_STOPWORDS_OK
-  EXPECT: GATE_STOPWORDS_OK
-  EVIDENCE: automatic-evidence=v1; definition-sha256=c8c48b436f964c3a770307b2cfdf076c022b648bfd7aa75e95f042da56041fe1; exit=0; EXPECT=matched; output-sha256=13627385ec21cbb055b19285d602bef07fb031cb515404eba2db7da4b47571c7; output-bytes=358; shell=/bin/sh; cwd=/Users/dmitriymitrokhin/Desktop/my-project/betting; path=f54d7d698ebf/18 entries
+- [x] G8: Lighthouse на телефоне: Performance от 90, SEO и Accessibility от 95 на пяти ключевых страницах
+  CHECK: CHROME_PATH="$(ls -d "$HOME"/Library/Caches/ms-playwright/chromium-*/chrome-mac*/'Google Chrome for Testing.app' | tail -1)/Contents/MacOS/Google Chrome for Testing" npm run lhci && echo GATE_LIGHTHOUSE_OK
+  EXPECT: GATE_LIGHTHOUSE_OK
+  EVIDENCE: automatic-evidence=v1; definition-sha256=d19a8a4f30ea0edf5dddf2326f33913bc1e742f8f9430eac542bc0538fc57919; exit=0; EXPECT=matched; output-sha256=9ed54774b23421138aa546b375d4d2f731d336368d111b767caf786efa80f813; output-bytes=1102; shell=/bin/sh; cwd=/Users/dmitriymitrokhin/Desktop/my-project/betting; path=f54d7d698ebf/18 entries
+
+- [ ] G9: валидатор микроразметки Яндекса без ошибок
+  EVIDENCE: pending
+
+ABANDON: G9 валидатор Яндекса (webmaster.yandex.ru/tools/microtest/) — внешний сервис под аккаунтом человека; локально структура JSON-LD проверена check:seo (G5). Передано человеку в TODO.md, шаг 6.

@@ -89,6 +89,10 @@ test.describe('«Что такое система в ставках»', () => {
   }) => {
     await open(page)
     const before = page.url()
+    // Мини-калькулятор гидратируется при приближении к экрану: прокручиваем и ждём.
+    const calc = page.locator('.system-calculator')
+    await calc.scrollIntoViewIfNeeded()
+    await expect(calc).toHaveAttribute('data-ready', 'true')
     while ((await page.getByLabel(ODDS_LABEL).count()) < 3) {
       const n = await page.getByLabel(ODDS_LABEL).count()
       await page.getByRole('button', { name: 'Добавить событие' }).click()
