@@ -474,9 +474,10 @@ test.describe('без JavaScript', () => {
       await expect(example).toBeVisible()
       expect(plain(await example.textContent())).toContain('3 780,00 ₽')
       // getByText не заглядывает внутрь <noscript>, поэтому ищем по тегу
-      const notice = page.locator('noscript .notice')
+      const notice = page.locator('noscript.notice')
       await expect(notice).toBeVisible()
-      await expect(notice).toContainText('Калькулятору нужен JavaScript')
+      // Текст noscript Playwright не отдаёт через textContent — проверяем разметку.
+      expect(await page.content()).toMatch(/<noscript[^>]*>[^<]*Калькулятору нужен JavaScript/)
     } finally {
       await context.close()
     }

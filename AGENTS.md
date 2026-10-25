@@ -264,3 +264,23 @@
 - 2026-10-25, шаг 6: ленивые калькуляторы (ниже первого экрана) —
   `hydrate-on-visible` с `rootMargin: '400px'`; признак готовности —
   `data-ready="true"` на `.system-calculator` (e2e ждёт его перед вводом).
+- 2026-10-25, шаг 7: выключатель офферов — `shared/offers-guard.ts`
+  (`checkOffers`), при сборке — проверка в `nuxt.config.ts` (сборка падает),
+  в рантайме — `server/utils/offers.ts` (`offersEnabledNow()` читает
+  `OFFERS_ENABLED` при каждом вызове; при ошибке конфигурации — false и
+  сообщение в мониторинг раз в минуту). `/api/geo` пока отдаёт
+  `{ country: null, offersEnabled }` — страна будет на шаге 13. Включает
+  только строка `true`.
+- 2026-10-25, шаг 7: согласие на cookie — `useConsent()` (localStorage
+  `keflab:consent:v1`), баннер — `CookieBanner.vue` в layout, «Настройки
+  cookie» — в подвале. Метрика — `app/lib/metrika.ts` (Вебвизор и карта
+  кликов выключены, без noscript-пикселя), грузится только после «Принять» и
+  при непустом `NUXT_PUBLIC_METRIKA_ID` (для предсобранных страниц — задать
+  при сборке); цели — `reachGoal()`. Домен `mc.yandex.ru` добавлен в
+  `data/allowlist.json`. Выходные данные СМИ, плашка «справочный характер»,
+  блок «Ответственная игра», `RiskWarning` — `app/components/legal/`.
+- 2026-10-25, шаг 7: внутри `<noscript>` — только текст, без элементов
+  (иначе расхождение гидратации); e2e `hydration.spec.ts` ловит расхождения
+  на всех страницах. Субагенты гоняют e2e на своём `E2E_PORT`, полный
+  `npm run test:e2e` — только главный агент и не параллельно с другими
+  прогонами (общий порт 3100 и `reuseExistingServer` ломают оба прогона).

@@ -40,9 +40,8 @@ usePageSeo({
       </p>
     </div>
 
-    <noscript>
-      <p class="notice">{{ NO_JS_TEXT }}</p>
-    </noscript>
+    <!-- Внутри noscript только текст: элемент внутри даёт расхождение гидратации. -->
+    <noscript class="notice">{{ NO_JS_TEXT }}</noscript>
 
     <ExpressCalculator />
 

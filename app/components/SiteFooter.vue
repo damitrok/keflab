@@ -1,12 +1,17 @@
+<script setup lang="ts">
+const { openSettings } = useConsent()
+</script>
+
 <template>
   <footer class="site-footer">
     <div class="site-footer__inner">
-      <div class="site-footer__age">
-        <LegalAgeMark />
-        <!-- TODO(legal): формулировку утверждает юрист, текст переедет в data/site.json на шаге 7 -->
-        <p class="site-footer__note">
-          Сайт содержит справочные расчёты и не является предложением делать ставки.
-        </p>
+      <div class="site-footer__info">
+        <div class="site-footer__age">
+          <LegalAgeMark />
+          <LegalReferenceNotice />
+        </div>
+        <LegalResponsibleGamingLink />
+        <LegalMediaImprint />
       </div>
       <nav class="site-footer__nav" aria-label="Служебные страницы">
         <ul class="site-footer__list">
@@ -16,6 +21,11 @@
             <NuxtLink to="/politika-konfidencialnosti/">Политика конфиденциальности</NuxtLink>
           </li>
           <li><NuxtLink to="/otvetstvennaya-igra/">Ответственная игра</NuxtLink></li>
+          <li>
+            <button type="button" class="site-footer__link-button" @click="openSettings">
+              Настройки cookie
+            </button>
+          </li>
         </ul>
       </nav>
     </div>
@@ -34,17 +44,16 @@
     padding: var(--spacing-40) var(--spacing-16);
   }
 
+  &__info {
+    display: grid;
+    gap: var(--spacing-16);
+    align-content: start;
+  }
+
   &__age {
     display: flex;
     align-items: flex-start;
     gap: var(--spacing-16);
-  }
-
-  &__note {
-    margin: 0;
-    color: var(--color-pale-stone);
-    font-size: var(--text-body-sm);
-    line-height: var(--leading-body-sm);
   }
 
   &__list {
@@ -54,7 +63,8 @@
     padding: 0;
     list-style: none;
 
-    a {
+    a,
+    button {
       display: inline-flex;
       align-items: center;
       min-height: 44px;
@@ -69,6 +79,14 @@
       }
     }
   }
+
+  &__link-button {
+    padding: 0;
+    border: 0;
+    background: none;
+    font-family: inherit;
+    cursor: pointer;
+  }
 }
 
 @media (min-width: 768px) {
@@ -78,7 +96,7 @@
       padding: var(--spacing-56) var(--spacing-24);
     }
 
-    &__age {
+    &__info {
       max-width: 420px;
     }
   }

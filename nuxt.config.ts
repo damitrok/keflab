@@ -1,5 +1,14 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
+import site from './data/site.json'
+import { checkOffers, offersFlag } from './shared/offers-guard'
 import { SITE_PAGES } from './shared/site-pages'
+
+// Сборка с OFFERS_ENABLED=true падает, пока сайт не зарегистрирован как СМИ
+// или нет утверждённого предупреждения о рисках (шаг 7).
+const offers = checkOffers(offersFlag(process.env.OFFERS_ENABLED), site)
+if (!offers.enabled && offers.misconfigured) {
+  throw new Error(`[keflab] Сборка остановлена: ${offers.reason}`)
+}
 
 const prerenderRoutes = SITE_PAGES.filter((p) => p.prerender).map((p) => p.path)
 
@@ -28,6 +37,9 @@ export default defineNuxtConfig({
       // Предсобранные страницы берут значения на этапе сборки.
       yandexVerification: '',
       googleVerification: '',
+      // Номер счётчика Яндекс Метрики: NUXT_PUBLIC_METRIKA_ID. Пусто — Метрика
+      // не подключается вовсе. Загружается только после согласия на cookie.
+      metrikaId: '',
     },
   },
 

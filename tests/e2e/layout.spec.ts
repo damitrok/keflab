@@ -27,7 +27,8 @@ test.describe('каркас', () => {
     const footer = page.locator('footer')
     await expect(footer.getByText('18+').first()).toBeVisible()
     for (const [href, text] of Object.entries(FOOTER_LINKS)) {
-      const link = footer.locator(`a[href="${href}"]`)
+      // Ссылки — в навигации подвала (на «Ответственную игру» ведёт ещё и блок помощи).
+      const link = footer.getByRole('navigation').locator(`a[href="${href}"]`)
       await expect(link).toBeVisible()
       await expect(link).toContainText(text)
     }

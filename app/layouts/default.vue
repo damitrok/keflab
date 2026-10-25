@@ -7,6 +7,10 @@ const verification = [
 ].filter((m) => m.content)
 
 useHead({ meta: verification })
+
+// Сохранённый выбор по cookie читаем только в браузере; на сервере баннера нет.
+const consent = useConsent()
+onMounted(() => consent.load())
 </script>
 
 <template>
@@ -17,6 +21,7 @@ useHead({ meta: verification })
       <slot />
     </main>
     <SiteFooter />
+    <CookieBanner />
   </div>
 </template>
 

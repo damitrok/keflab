@@ -83,3 +83,25 @@
       `NUXT_PUBLIC_GOOGLE_VERIFICATION` (предсобранные страницы берут их на
       этапе `npm run build`).
 - [ ] Картинка для соцсетей (og:image, 1200×630, WebP/PNG) — сейчас её нет.
+
+## Шаг 7. Юридический слой без офферов
+
+- [ ] Принять шаг: при первом заходе — баннер cookie «Принять / Отклонить»;
+      в подвале — 18+, «справочный характер», «Ответственная игра»,
+      «Настройки cookie». `node scripts/gates/offers-flag.mjs` — сборка с
+      `OFFERS_ENABLED=true` падает, сервер с флагом считает офферы
+      выключенными.
+- [ ] **Юрист:** утвердить тексты плашки «справочный характер», блока
+      «Ответственная игра», баннера cookie (`TODO(legal)` в
+      `app/components/legal/*.vue`, `app/components/CookieBanner.vue`) и 12
+      разделов служебных страниц (`app/pages/o-proekte.vue`, `reklama.vue`,
+      `politika-konfidencialnosti.vue`, `otvetstvennaya-igra.vue`).
+- [ ] Для «Ответственной игры»: какие службы помощи и телефоны указывать (и
+      домены их сайтов — в `data/allowlist.json`).
+- [ ] Номер счётчика Яндекс Метрики → `NUXT_PUBLIC_METRIKA_ID` при сборке и
+      запуске.
+- [ ] Подтвердить: домен `mc.yandex.ru` добавлен в `data/allowlist.json`
+      (нужен для загрузки Метрики).
+- [ ] Первое включение офферов (позже, шаг 13): `media.registered = true` и
+      все выходные данные СМИ в `data/site.json` → утверждённый
+      `riskWarning` → `OFFERS_ENABLED=true`.
