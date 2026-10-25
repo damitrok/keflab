@@ -1,6 +1,9 @@
+import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vitest/config'
 
 export default defineConfig({
+  // Алиас Nuxt `#shared` для чистых модулей app/lib, которые импортируют shared/.
+  resolve: { alias: { '#shared': fileURLToPath(new URL('./shared', import.meta.url)) } },
   test: {
     include: ['tests/unit/**/*.{test,spec}.ts'],
     environment: 'node',

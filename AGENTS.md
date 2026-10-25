@@ -351,3 +351,25 @@
   `frame-src 'self'` для превью. `check:seo` пропускает страницы с
   `indexable: false`, но проверяет у них noindex. E2E с собственными
   серверами берут непересекающиеся диапазоны портов (по 20 на спек).
+- 2026-10-25, шаг 13: офферы. Видимость — `offerShowable()` в
+  `shared/offers.ts` (выключатель с регистрацией СМИ, erid, рекламодатель,
+  ИНН, срок по Москве включительно, страна RU, домен trackingUrl в
+  allowlist) — одна функция для `/api/geo`, `/api/stat` и `/go/<id>`
+  (`decideGo`: 302 с erid в адресе / 404 / 410 при сроке вне диапазона).
+  Страна — ТОЛЬКО заголовок `X-Keflab-Country` от Nginx (geoip2) и только при
+  `GEO_HEADER_TRUSTED=true`; в Node GeoIP нет. Браузер получает
+  `PublicOffer` без trackingUrl (`shared/offers-api.ts`). Блок рисуется
+  только в браузере после `/api/geo` (таймаут 300 мс, кеш 60 с, скрытие по
+  validTo и при возврате из сна). Признак виджета липкий на сеанс + guard
+  навигации + запрет офферов в любом iframe. Статистика — `useStorage('stats')`,
+  каталог `KEFLAB_STATS_DIR` монтируется при запуске
+  (`server/plugins/stats-storage.ts`), ключ `ГГГГ-ММ-ДД:erid` →
+  `{impressions, clicks, throttled?}`, 13 месяцев. Срочно выключить —
+  `sudo /usr/local/sbin/keflab-offers off`. E2E офферов — на копии с
+  тестовыми данными: `node scripts/gates/offers-e2e.mjs`
+  (`playwright.offers.config.ts`, `tests/e2e-offers/`).
+- 2026-10-25, шаг 13 (решение агента, ВРЕМЕННОЕ по правилу 9 — ждёт
+  человека, см. TODO.md): офферы показываются только на `/`,
+  `/kalkulyator-ekspressa/` и `/sistema-k-iz-n/` (страница явно разрешает
+  через `provideOfferSlot()`); на страницах правил БК, в статье и на мелких
+  калькуляторах — нет (fail-closed).

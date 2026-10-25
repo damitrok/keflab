@@ -1,0 +1,16 @@
+[
+  {
+    "id": "test-offer",
+    "bookmakerSlug": "test-bk",
+    "advertiserName": "Тестовый рекламодатель",
+    "advertiserInn": "1234567890",
+    "erid": "TESTerid0001",
+    "trackingUrl": "https://example.com/promo?utm=1",
+    "title": "Тестовое предложение",
+    "conditionsShort": "Условия тестового предложения.",
+    "validFrom": "2026-01-01",
+    "validTo": "2026-12-31",
+    "geo": ["RU"],
+    "placements": ["calc-result"]
+  }
+]

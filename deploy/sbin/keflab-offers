@@ -1,0 +1,116 @@
+#!/usr/bin/env bash
+# /usr/local/sbin/keflab-offers — срочно выключить или включить офферы на production.
+# Запускает ТОЛЬКО root, от руки: sudo /usr/local/sbin/keflab-offers off|on|status.
+# В sudoers пользователя deploy этой команды НЕТ и не должно быть.
+#
+#   off     — OFFERS_ENABLED=false в /etc/keflab/keflab.env и systemctl restart keflab.
+#             Офферы пропадают за секунды, сборка и выпуск не нужны.
+#   on      — OFFERS_ENABLED=true и перезапуск. Только с флагом --media-registered:
+#             офферы включаются после регистрации сайта как СМИ (AGENTS.md).
+#   status  — значение в файле и состояние сервиса.
+#
+# Файл меняется атомарно: временный файл в том же каталоге, затем mv. Владелец и режим прежнего
+# файла сохраняются (cp -p). Меняется только строка OFFERS_ENABLED; остальные строки не трогаются.
+#
+# Пути фиксированы, когда запущено от root. Переменные окружения для путей игнорируются.
+# Песочница для проверок без root: KEFLAB_OFFERS_SANDBOX=1 KEFLAB_ENV_FILE=<файл> KEFLAB_SYSTEMCTL=<команда>.
+set -Eeuo pipefail
+umask 027
+
+usage() {
+  echo "usage: keflab-offers off | on --media-registered | status" >&2
+  exit 2
+}
+
+cmd=${1:-}
+case $cmd in
+  off)
+    [[ $# -eq 1 ]] || usage
+    ;;
+  on)
+    [[ $# -eq 2 && ${2:-} == --media-registered ]] || {
+      echo "on требует --media-registered: офферы только после регистрации сайта как СМИ (AGENTS.md)" >&2
+      exit 2
+    }
+    ;;
+  status)
+    [[ $# -eq 1 ]] || usage
+    ;;
+  *) usage ;;
+esac
+
+if [[ $EUID -eq 0 ]]; then
+  env_dir=/etc/keflab
+  env_file=/etc/keflab/keflab.env
+  systemctl_bin=/usr/bin/systemctl
+else
+  if [[ ${KEFLAB_OFFERS_SANDBOX:-} != 1 ]]; then
+    echo "нужен root: sudo /usr/local/sbin/keflab-offers $*" >&2
+    exit 1
+  fi
+  env_file=${KEFLAB_ENV_FILE:?KEFLAB_ENV_FILE не задан}
+  systemctl_bin=${KEFLAB_SYSTEMCTL:?KEFLAB_SYSTEMCTL не задан}
+  env_dir=$(dirname -- "$env_file")
+fi
+
+# Защита от подмены: ни каталог, ни файл не должны быть симлинками; файл обычный.
+check_target() {
+  if [[ -L $env_dir || -L $env_file || ! -f $env_file ]]; then
+    echo "нет обычного файла $env_file (или это симлинк)" >&2
+    exit 1
+  fi
+}
+
+tmp=""
+cleanup() {
+  if [[ -n $tmp ]]; then rm -f -- "$tmp"; fi
+}
+trap cleanup EXIT
+
+set_flag() {
+  local value=$1
+  check_target
+  tmp=$(mktemp "$env_dir/.keflab.env.XXXXXX")
+  # cp -p: режим и владелец прежнего файла (root:keflab, 0640) переходят на временный файл.
+  cp -p -- "$env_file" "$tmp"
+  awk -v v="$value" '
+    /^OFFERS_ENABLED=/ { print "OFFERS_ENABLED=" v; found = 1; next }
+    { print }
+    END { if (!found) print "OFFERS_ENABLED=" v }
+  ' "$env_file" >"$tmp"
+  mv -f -- "$tmp" "$env_file"
+  tmp=""
+}
+
+restart_service() {
+  "$systemctl_bin" restart keflab
+}
+
+show_status() {
+  check_target
+  local line
+  line=$(grep -E '^OFFERS_ENABLED=' "$env_file" | tail -n 1 || true)
+  if [[ -z $line ]]; then
+    echo "файл: OFFERS_ENABLED не задан (офферы выключены по умолчанию)"
+  else
+    echo "файл: $line"
+  fi
+  echo "сервис: $("$systemctl_bin" is-active keflab 2>/dev/null || true)"
+}
+
+case $cmd in
+  off)
+    set_flag false
+    restart_service
+    echo "офферы выключены: OFFERS_ENABLED=false, keflab перезапущен"
+    echo "проверка: curl -s https://keflab.ru/api/geo  (offersEnabled должен быть false)"
+    ;;
+  on)
+    set_flag true
+    restart_service
+    echo "офферы включены: OFFERS_ENABLED=true, keflab перезапущен"
+    ;;
+  status)
+    show_status
+    ;;
+esac

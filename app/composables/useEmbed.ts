@@ -11,7 +11,13 @@ import { isEmbedPath, normalizeTheme } from '../lib/widget-code'
  */
 export function useIsEmbed() {
   const route = useRoute()
-  return computed(() => isEmbedPath(route.path))
+  const session = useEmbedSession()
+  return computed(() => session.value || isEmbedPath(route.path))
+}
+
+/** Липкий признак сеанса виджета (см. app/lib/embed-session.ts); не сбрасывается. */
+export function useEmbedSession() {
+  return useState<boolean>('keflab:embed-session', () => false)
 }
 
 /** Тема виджета из ?theme= (по умолчанию тёмная); работает на SSR. */

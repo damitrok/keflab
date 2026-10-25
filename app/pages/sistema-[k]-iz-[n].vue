@@ -33,6 +33,9 @@ usePageSeo({
   },
   faq: page.faq,
 })
+
+// Офферы разрешены только здесь (правило 9, fail-closed).
+provideOfferSlot()
 </script>
 
 <template>

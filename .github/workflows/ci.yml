@@ -28,6 +28,8 @@ jobs:
       - run: npm ci
       - name: Проверка data/*.json
         run: npm run check:data
+      - name: Офферы (erid, рекламодатель, домены, стоп-слова, сроки)
+        run: npm run check:offers
       - run: npm run lint
       - name: Конфиги выпуска (Nginx, systemd, скрипты)
         run: npm run check:deploy

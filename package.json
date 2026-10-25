@@ -18,7 +18,8 @@
     "check:seo": "node scripts/check-seo.mjs",
     "prebuild": "node scripts/gen-lastmod.mjs",
     "load-test": "node scripts/ops/load-test.mjs",
-    "check:deploy": "node deploy/scripts/check-deploy.mjs"
+    "check:deploy": "node deploy/scripts/check-deploy.mjs",
+    "check:offers": "node scripts/check-offers.mjs"
   },
   "dependencies": {
     "@fontsource-variable/geist": "^5.3.0",

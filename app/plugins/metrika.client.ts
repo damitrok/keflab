@@ -5,7 +5,7 @@ import { isEmbedPath } from '~/lib/widget-code'
 // NUXT_PUBLIC_METRIKA_ID. Выбор читает useConsent().load() в layout.
 export default defineNuxtPlugin((nuxtApp) => {
   // Виджет (/embed/): Метрика не грузится ни при каком согласии.
-  if (isEmbedPath(window.location.pathname)) return
+  if (useEmbedSession().value || isEmbedPath(window.location.pathname)) return
 
   const { analyticsAllowed } = useConsent()
   const metrikaId = useRuntimeConfig().public.metrikaId

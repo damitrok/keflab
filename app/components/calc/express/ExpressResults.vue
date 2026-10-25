@@ -2,8 +2,10 @@
 import type { ExpressCalc } from '~/composables/useExpressCalc'
 import { CALC_ERROR_TEXTS, CALC_FAILED_TEXT, NOT_SETTLED_TEXT } from '~/lib/texts'
 import { formatMoney, formatOdds } from '~/lib/format'
+import OfferBlock from '../../offers/OfferBlock.vue'
 import MoneyValue from '../results/MoneyValue.vue'
 
+const offersAllowed = useOfferSlotAllowed()
 const props = defineProps<{ calc: ExpressCalc }>()
 
 // Поля calc — ref'ы; unref работает и если страница передала reactive(calc).
@@ -79,6 +81,7 @@ const totalOdds = computed(() => {
       </template>
     </div>
     <slot />
+    <OfferBlock v-if="offersAllowed" placement="calc-result" />
   </section>
 </template>
 

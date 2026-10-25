@@ -42,16 +42,18 @@ npm run load-test      # нагрузка (скрипт добавлен в за
 
 Шаблон — `.env.example`. Реальные значения в git не хранить.
 
-| Имя                               | Где нужна                                              | Пример                   | Обязательна                                                                         |
-| --------------------------------- | ------------------------------------------------------ | ------------------------ | ----------------------------------------------------------------------------------- |
-| `NUXT_PUBLIC_METRIKA_ID`          | сборка (GitHub Variables репозитория)                  | `12345678`               | нет: пусто — Метрика не подключается. Для staging код сборки всегда оставляет пусто |
-| `NUXT_PUBLIC_YANDEX_VERIFICATION` | сборка (GitHub Variables репозитория)                  | `abc123…`                | нет: метатег Вебмастера                                                             |
-| `NUXT_PUBLIC_GOOGLE_VERIFICATION` | сборка (GitHub Variables репозитория)                  | `xyz789…`                | нет: метатег Search Console                                                         |
-| `OFFERS_ENABLED`                  | сборка (проверка) и рантайм (`/etc/keflab/keflab.env`) | `false`                  | да, по умолчанию `false`. Только строка `true` включает офферы                      |
-| `NODE_ENV`                        | рантайм                                                | `production`             | да                                                                                  |
-| `PORT`                            | рантайм                                                | `3000` (staging: `3001`) | да                                                                                  |
-| `NITRO_PORT`                      | рантайм                                                | `3000` (staging: `3001`) | да, то же, что `PORT`                                                               |
-| `NITRO_HOST`                      | рантайм                                                | `127.0.0.1`              | да: Node слушает только локальный адрес                                             |
+| Имя                               | Где нужна                                              | Пример                                                                   | Обязательна                                                                          |
+| --------------------------------- | ------------------------------------------------------ | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------ |
+| `NUXT_PUBLIC_METRIKA_ID`          | сборка (GitHub Variables репозитория)                  | `12345678`                                                               | нет: пусто — Метрика не подключается. Для staging код сборки всегда оставляет пусто  |
+| `NUXT_PUBLIC_YANDEX_VERIFICATION` | сборка (GitHub Variables репозитория)                  | `abc123…`                                                                | нет: метатег Вебмастера                                                              |
+| `NUXT_PUBLIC_GOOGLE_VERIFICATION` | сборка (GitHub Variables репозитория)                  | `xyz789…`                                                                | нет: метатег Search Console                                                          |
+| `OFFERS_ENABLED`                  | сборка (проверка) и рантайм (`/etc/keflab/keflab.env`) | `false`                                                                  | да, по умолчанию `false`. Только строка `true` включает офферы                       |
+| `NODE_ENV`                        | рантайм                                                | `production`                                                             | да                                                                                   |
+| `PORT`                            | рантайм                                                | `3000` (staging: `3001`)                                                 | да                                                                                   |
+| `NITRO_PORT`                      | рантайм                                                | `3000` (staging: `3001`)                                                 | да, то же, что `PORT`                                                                |
+| `NITRO_HOST`                      | рантайм                                                | `127.0.0.1`                                                              | да: Node слушает только локальный адрес                                              |
+| `GEO_HEADER_TRUSTED`              | рантайм (`keflab.env`, `keflab-staging.env`)           | `true`                                                                   | да. Только `true` доверяет заголовку страны от Nginx; иначе страны нет и офферов нет |
+| `KEFLAB_STATS_DIR`                | рантайм                                                | `/srv/keflab/shared/stats` (staging: `/srv/keflab-staging/shared/stats`) | да, если ведётся статистика показов и кликов (раздел «Статистика показов и кликов»)  |
 
 `NUXT_PUBLIC_*` задаются только при сборке и в рантайм не кладутся. Значения попадают в
 предсобранные страницы и в inline-конфиг SSR, а хэш этого скрипта стоит в CSP. Если в
@@ -116,20 +118,171 @@ KEFLAB_ENV=production /srv/keflab/bin/rollback.sh <sha>    # конкретны�
 
 ## Срочно убрать все офферы
 
-Офферы выключаются флагом `OFFERS_ENABLED` в `/etc/keflab/keflab.env`. Сборка и выпуск
-не нужны. Процесс читает флаг из своего окружения при старте, поэтому после правки нужен
-перезапуск (несколько секунд):
+Одна команда на VPS, от root (сборка и выпуск не нужны):
 
 ```sh
-sudo sed -i 's/^OFFERS_ENABLED=.*/OFFERS_ENABLED=false/' /etc/keflab/keflab.env
-sudo systemctl restart keflab
-curl -s https://keflab.ru/api/geo     # в ответе offersEnabled: false
+sudo /usr/local/sbin/keflab-offers off      # OFFERS_ENABLED=false и перезапуск keflab
+sudo /usr/local/sbin/keflab-offers status   # значение в файле и состояние сервиса
+curl -s https://keflab.ru/api/geo          # в ответе offersEnabled: false
 ```
 
-На время перезапуска `/api/*` и `/go/*` могут отвечать 502 на 1–3 секунды; главная
-отдаётся из кэша Nginx. Значение в `keflab.env` не трогает выпуск, так что выключение
-переживает следующий релиз. Включить обратно — то же с `true`, только после регистрации
-сайта как СМИ (см. AGENTS.md).
+Что делает утилита (`deploy/sbin/keflab-offers`):
+
+- меняет только строку `OFFERS_ENABLED` в `/etc/keflab/keflab.env`: пишет временный файл в том же
+  каталоге и заменяет им старый (`mv`), владелец и права (`root:keflab`, `0640`) сохраняются;
+- выполняет `systemctl restart keflab`: процесс читает флаг только при старте. Офферы пропадают
+  за несколько секунд. На это время `/api/*` и `/go/*` могут отвечать 502; главная отдаётся из
+  кэша Nginx;
+- если перезапуск не удался, файл уже изменён: повторите `sudo systemctl restart keflab`.
+
+Включить обратно можно только после регистрации сайта как СМИ (AGENTS.md):
+
+```sh
+sudo /usr/local/sbin/keflab-offers on --media-registered
+```
+
+Утилита запускается только от root. В `/etc/sudoers.d/keflab-deploy` для неё строки **нет**:
+deploy выключать офферы не должен. Staging утилита не трогает: там та же правка
+`OFFERS_ENABLED` в `/etc/keflab/keflab-staging.env` и `systemctl restart keflab-staging`.
+
+Значение в `keflab.env` не трогает выпуск, поэтому выключение переживает следующий релиз.
+
+## GeoIP: страна для офферов (шаг 13)
+
+Страну определяет Nginx по адресу клиента, локально, из файла базы MMDB (модуль
+`ngx_http_geoip2_module`). Страна уходит в приложение заголовком `X-Keflab-Country`
+(ISO-код или пусто). Node читает его только при `GEO_HEADER_TRUSTED=true`. Иначе страна
+неизвестна и офферов нет.
+
+Почему заголовку можно доверять:
+
+- `snippets/proxy-node.conf` задаёт `X-Keflab-Country` в каждом location с `proxy_pass`.
+  Заголовок клиента перетирается. Пустое значение не передаётся, поэтому подделка снаружи
+  не проходит. `check-deploy.mjs` проверяет, что в каждом проксирующем location есть этот сниппет.
+- Node слушает только `127.0.0.1` (systemd: `IPAddressAllow=localhost`). Заголовок может
+  прийти только от Nginx.
+- Локальная база ничего не передаёт наружу. Исключение — загрузка новой версии базы, см. ниже.
+
+### Поставщик базы: решение человека
+
+Агент не выбирал поставщика и не проверял лицензии и текущие условия. Ниже — варианты
+для сверки. Регистрацию и лицензионные ключи делает человек.
+
+| Поставщик                   | Формат                               | Условия (проверить на сайте поставщика)                                      | Замечание                                                                                      |
+| --------------------------- | ------------------------------------ | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| MaxMind GeoLite2-Country    | MMDB, нативно                        | бесплатно, нужна регистрация и лицензионный ключ, атрибуция; компания из США | обновляется регулярно; загрузка через `geoipupdate` ходит на серверы MaxMind                   |
+| MaxMind GeoIP2-Country      | MMDB                                 | платно                                                                       | то же, что GeoLite2, с другими условиями                                                       |
+| DB-IP IP to Country Lite    | MMDB                                 | бесплатно, без регистрации; лицензия CC BY 4.0, нужна атрибуция на сайте     | выпуск раз в месяц                                                                             |
+| IPinfo Lite                 | MMDB                                 | бесплатно, нужен токен                                                       | поля могут называться иначе (например, `country_code`): путь в конфиге править по `mmdblookup` |
+| ipgeobase.ru (Россия)       | CSV/текст, не MMDB                   | бесплатные базы, проверить лицензию и право на переработку                   | нужна конвертация в MMDB; модуля для этого формата нет                                         |
+| Sypex Geo, SxGeo (Россия)   | собственный бинарный формат, не MMDB | проверить лицензию                                                           | нужна конвертация или свой парсер; готового модуля nginx нет                                   |
+| Любой онлайн-API геолокации | —                                    | —                                                                            | **нельзя**: IP посетителя уйдёт за пределы сервера (ограничение ТЗ)                            |
+
+Что важно для выбора: путь `country iso_code` (в MaxMind-схеме) должен существовать в базе;
+проверить командой ниже. Если база не различает страну точно, например для мобильных
+операторов, то страна может ошибочно указать РФ или не указать её вовсе. Тогда офферы
+показываются там, где не должны, или не показываются там, где должны. Это юридический риск,
+решение за человеком (AGENTS.md, правило 9).
+
+### Установка (до шага 8 «Nginx: боевые конфиги»)
+
+```sh
+sudo apt install -y libnginx-mod-http-geoip2 mmdb-bin   # mmdb-bin даёт mmdblookup
+ls /etc/nginx/modules-enabled/ | grep -i geoip          # модуль подключается пакетом сам
+sudo install -d -m 755 -o root -g root /etc/nginx/keflab/geo
+# Файл базы выбранного поставщика кладёт человек (не из репозитория), например country.mmdb:
+sudo install -m 644 -o root -g root /путь/к/country.mmdb /etc/nginx/keflab/geo/country.mmdb
+# Проверка: страна должна вернуться (77.88.8.8 — РФ, 8.8.8.8 — США)
+mmdblookup --file /etc/nginx/keflab/geo/country.mmdb --ip 77.88.8.8 country iso_code
+mmdblookup --file /etc/nginx/keflab/geo/country.mmdb --ip 8.8.8.8 country iso_code
+```
+
+Если `mmdblookup` ничего не вернул или путь другой, исправьте `$keflab_geo_country country iso_code`
+в `conf.d/keflab-http.conf` под схему базы. Без корректного пути страна всегда пустая.
+
+Без модуля или без файла базы `nginx -t` упадёт (неизвестная директива или файл не открыт).
+Тогда используйте запасной вариант.
+
+### Обновление базы раз в месяц (шаг 15)
+
+Базы устаревают, поэтому обновлять раз в месяц:
+
+```sh
+# 1. Скачать новую версию вручную или утилитой поставщика в каталог вне /etc/nginx.
+# 2. Проверить mmdblookup на двух адресах (см. выше).
+sudo install -m 644 -o root -g root /путь/к/новой/country.mmdb /etc/nginx/keflab/geo/country.mmdb.new
+sudo mv /etc/nginx/keflab/geo/country.mmdb.new /etc/nginx/keflab/geo/country.mmdb
+sudo nginx -t && sudo systemctl reload nginx
+# 3. Дата обновления — по времени файла:
+sudo stat -c '%y %n' /etc/nginx/keflab/geo/country.mmdb
+```
+
+Возраст базы больше 35 дней — напоминание в журнал выпусков. Автоматического обновления
+нет: загрузка из интернета и лицензионные ключи — решение человека.
+
+### Запасной вариант: модуля или базы нет
+
+На VPS, в `/etc/nginx/conf.d/keflab-http.conf`: закомментировать блок `geoip2 ... { ... }` и
+раскомментировать блок `map $remote_addr $keflab_geo_country { default ""; }`. Затем:
+
+```sh
+sudo nginx -t && sudo systemctl reload nginx
+sudo nginx -T 2>/dev/null | grep -c 'map \$remote_addr \$keflab_geo_country'   # должно быть 1
+```
+
+Страна всегда пустая: приложение не получит страну, офферы не показываются, сайт работает.
+Вернуть GeoIP — обратная правка и `nginx -t`.
+
+### Проверка после установки
+
+```sh
+# Число заголовков X-Keflab-Country равно числу проксирующих location (proxy_pass на Node):
+sudo nginx -T 2>/dev/null | grep -c 'X-Keflab-Country'
+sudo nginx -T 2>/dev/null | grep -c 'proxy_pass http://keflab'
+# Подделка снаружи не меняет ответ: сравнить ответ с заголовком и без него.
+curl -s https://keflab.ru/api/geo
+curl -s -H 'X-Keflab-Country: RU' https://keflab.ru/api/geo
+```
+
+Два ответа `/api/geo` должны совпадать. Если отличаются, Nginx не перетирает заголовок: включите
+`GEO_HEADER_TRUSTED` только после исправления.
+
+## Статистика показов и кликов
+
+- **Каталог.** `KEFLAB_STATS_DIR`: `/srv/keflab/shared/stats` (production),
+  `/srv/keflab-staging/shared/stats` (staging). Владелец `keflab:keflab`, права `0750`:
+
+  ```sh
+  sudo install -d -m 0750 -o keflab -g keflab /srv/keflab/shared/stats /srv/keflab-staging/shared/stats
+  ```
+
+  Юниты systemd уже разрешают запись в `ReadWritePaths` (`/srv/keflab/shared`,
+  `/srv/keflab-staging/shared`), поэтому каталог внутри них доступен процессу.
+
+- **Срок хранения — 13 месяцев.** Хранит и очищает приложение. Внешней очистки на VPS нет.
+- **`/api/stat`** (Nginx): только `POST`, тело до 1 КБ, лимит 5 запросов в секунду на сеть
+  (всплеск 20). Сверх лимита — `429`. Ключ лимита живёт только в памяти nginx.
+- **Лимиты по сети.** Все зоны `limit_req` (`/go`, `/api/error`, `/api/stat`) считают по одному
+  ключу `$keflab_limit_key` (`conf.d/keflab-http.conf`): IPv4 — по `/24`, IPv6 — по `/64`
+  (первые четыре группы), IPv4-mapped — как IPv4. Лимиты по полному адресу не используются:
+  иначе блок адресов обходит их.
+- **Защита счётчика показов.** От прямого скрипта, который шлёт `POST /api/stat` в обход сайта,
+  счётчик показов полностью не защищён: nginx ограничивает частоту, но не подлинность. Лимиты
+  по `/24` и `/64` уменьшают нагрузку, а не доказывают, что показ был. Скрипт с поддельным
+  заголовком `Origin` с российского адреса может накручивать показы. Дополнительно Node
+  ограничивает показы на `erid` (3000 в минуту на процесс, в 10 раз выше лимита одной сети),
+  а отброшенные лимитом показы записывает отдельным полем `throttled` в те же суточные
+  файлы — по нему видно накрутку и можно объяснить расхождения в отчёте для ОРД.
+- **Логи** `/api/stat`: `keflab-stat.access.log` (и `keflab-staging-stat.access.log`) в формате
+  `/go`: без IP и без User-Agent. Срок хранения 14 дней, как у остальных логов Nginx.
+- **Адрес в приложении.** Nginx передаёт `X-Real-IP` и `X-Forwarded-For` в Node, как и всем
+  location. Приложение не должно писать их в статистику: это проверка кода, а не Nginx.
+- **Ограничения.** Клиент с блоком адресов короче `/64` (например, `/48`) получает отдельный
+  лимит на каждый `/64`. Сеть с общим IPv4 (мобильный оператор, NAT) делит один лимит на `/24`:
+  часть показов может не посчитаться. Для посетителя это не ошибка: запрос получит `429`,
+  а скрипт сайта не показывает ошибку пользователю.
+- **Уточнение по лимиту `/go` и `/api/error`.** Теперь они тоже по сети (`/24` и `/64`), а не по
+  адресу. Пользователи одной мобильной сети делят лимит `/go` (10 запросов в секунду, всплеск 20).
 
 ## Staging
 
@@ -182,7 +335,7 @@ Exit 1 — срок меньше порога или сертификат не �
 **Ошибки приложения.** Приложение пишет строки `[keflab] …` в journald без пользовательских
 данных (IP, запросов, ввода). Посмотреть вручную:
 `journalctl -u keflab -p warning --since "1 hour ago"`. Заявки из браузера на `/api/error`
-проходят через лимит Nginx: 1 запрос в секунду на адрес, всплеск 10, только POST.
+проходят через лимит Nginx: 1 запрос в секунду на сеть (IPv4 /24, IPv6 /64), всплеск 10, только POST.
 
 Чтобы ошибки уходили в сервис, выбрать один из вариантов (решение человека):
 
@@ -194,7 +347,7 @@ Exit 1 — срок меньше порога или сертификат не �
   нет персональных данных.
 
 **Логи Nginx и срок хранения.** Основной лог — с маскированным IP (`203.0.113.0`). Лог
-`/go` — без IP и без User-Agent; его error-лог пишет только `crit`, поэтому записи об
+`/go` и `/api/stat` — без IP и без User-Agent; их error-лог пишет только `crit`, поэтому записи об
 отказах `limit_req` (содержат адрес клиента) туда не попадают. Срок хранения всех логов
 Nginx — **14 дней**. Ubuntu уже ротирует `/var/log/nginx/*.log` ежедневно и хранит 14
 копий (`/etc/logrotate.d/nginx`): файлы `keflab-*.log` попадают под эту маску. Проверить:
@@ -220,7 +373,7 @@ A-записи `keflab.ru`, `www.keflab.ru`, `staging.keflab.ru` на адрес
 
 ```sh
 sudo apt update
-sudo apt install -y nginx certbot curl rsync openssl ufw
+sudo apt install -y nginx libnginx-mod-http-geoip2 mmdb-bin certbot curl rsync openssl ufw
 sudo ufw allow OpenSSH          # сначала SSH, чтобы не отрезать себя
 sudo ufw allow 'Nginx Full'
 sudo ufw enable
@@ -271,11 +424,16 @@ sudo install -d -m 750 -o root -g keflab /etc/keflab
 sudo install -d -m 755 -o root -g root /var/www/letsencrypt
 sudo install -d -m 755 -o www-data -g www-data /var/cache/nginx/keflab /var/cache/nginx/keflab-staging \
   /var/cache/nginx/keflab-embed /var/cache/nginx/keflab-staging-embed
+sudo install -d -m 0750 -o keflab -g keflab /srv/keflab/shared/stats /srv/keflab-staging/shared/stats
+sudo install -d -m 755 -o root -g root /etc/nginx/keflab/geo   # база GeoIP, см. раздел «GeoIP»
 ```
 
 **5. Файлы окружения.** Шаблон — `.env.example`, раздел «Рантайм». Значения
 `OFFERS_ENABLED=false`, `NITRO_HOST=127.0.0.1`, `NITRO_PORT`/`PORT` — `3000` для production
-и `3001` для staging. Файл читается как данные (построчно `KEY=VALUE`), shell его не выполняет.
+и `3001` для staging. `GEO_HEADER_TRUSTED=true` (в обоих файлах) и `KEFLAB_STATS_DIR` — как в
+шаблоне: для staging путь `/srv/keflab-staging/shared/stats`. `GEO_HEADER_TRUSTED=true` допустимо
+только за Nginx из `deploy/nginx`, который перетирает заголовок страны (раздел «GeoIP»).
+Файл читается как данные (построчно `KEY=VALUE`), shell его не выполняет.
 
 ```sh
 sudo nano /etc/keflab/keflab.env
@@ -316,7 +474,8 @@ sudo certbot renew --dry-run
 systemctl list-timers | grep certbot    # таймер certbot.timer должен быть активен
 ```
 
-**8. Nginx: боевые конфиги.**
+**8. Nginx: боевые конфиги.** Сначала модуль и база GeoIP (раздел «GeoIP»): без файла
+`/etc/nginx/keflab/geo/country.mmdb` `nginx -t` не пройдёт, если не включён запасной вариант.
 
 ```sh
 sudo install -d -m 755 /etc/nginx/keflab/snippets /etc/nginx/keflab/csp
@@ -351,6 +510,7 @@ sudo nginx -t && sudo systemctl reload nginx
 
 ```sh
 sudo install -m 755 -o root -g root deploy/sbin/keflab-install-csp /usr/local/sbin/keflab-install-csp
+sudo install -m 755 -o root -g root deploy/sbin/keflab-offers /usr/local/sbin/keflab-offers
 sudo cp deploy/systemd/keflab.service deploy/systemd/keflab-staging.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemd-analyze verify /etc/systemd/system/keflab.service /etc/systemd/system/keflab-staging.service
@@ -392,7 +552,7 @@ deploy/scripts/check-cert.sh keflab.ru 14            # с другой маши�
   подключается только в `location ^~ /embed/` и не сочетается с общим набором (иначе два CSP).
   В этом наборе нет `X-Frame-Options` (браузер применил бы его и запретил встраивание),
   Метрики нет (`connect-src 'self'`, `frame-src 'none'`). Счётчик показов идёт через свой
-  `/api/stat` с того же домена.
+  `/api/stat` с того же домена (лимиты и лог: раздел «Статистика показов и кликов»).
 - **Заголовки Node скрыты.** `routeRules` в `nuxt.config.ts` шлёт свои CSP и `X-Robots-Tag`
   для `/embed/**`. Nginx их прячет (`proxy_hide_header`) и ставит свои.
 - **X-Robots-Tag:** production — `noindex`; staging — `noindex, nofollow`.
@@ -431,6 +591,28 @@ deploy/scripts/check-cert.sh keflab.ru 14            # с другой маши�
 - **Кэш главной.** Главная кэшируется на 60 секунд. Старый HTML из кэша может ссылаться на
   чанки прошлого релиза на минуту после выпуска — это допустимо.
 - **Пробный запуск** выполняется на порту `PORT+1000`: production 4000, staging 4001.
+- **GeoIP не проверен на nginx.** Директивы `geoip2`, `proxy_cache_key` с переменной и
+  `limit_req_zone` с переменной ключа написаны по документации модуля и nginx, но `nginx -t` на
+  машине разработки не запускался. Проверка — `sudo nginx -t` на VPS.
+- **Кэш главной разделён по стране** (`proxy_cache_key` с `$keflab_geo_country`). Если главная
+  от страны не зависит, кэш просто делится на варианты. Предсобранные страницы из `.output/public`
+  Node не обслуживает: страны в них нет. Если офферы будут в статике, решать на шаге 13, а не здесь.
+- **Заголовок страны при GEO_HEADER_TRUSTED не `true`** приложение не использует: страна неизвестна,
+  офферов нет (безопасный отказ).
+- **`keflab-offers` и `shellcheck`.** `shellcheck` на машине разработки не установлен, поэтому
+  проверены `bash -n` и песочница на временных путях (`KEFLAB_OFFERS_SANDBOX=1`). Песочница
+  в root-ветке не действует: под root пути фиксированы.
+- **GeoIP не проверен на nginx.** Директивы `geoip2`, `proxy_cache_key` с переменной и
+  `limit_req_zone` с переменной ключа написаны по документации модуля и nginx, но `nginx -t` на
+  машине разработки не запускался. Проверка — `sudo nginx -t` на VPS.
+- **Кэш главной разделён по стране** (`proxy_cache_key` с `$keflab_geo_country`). Если главная
+  от страны не зависит, кэш просто делится на варианты. Предсобранные страницы из `.output/public`
+  Node не обслуживает: страны в них нет. Если офферы будут в статике, решать на шаге 13, а не здесь.
+- **Заголовок страны при GEO_HEADER_TRUSTED=false** приложение не использует: страна неизвестна,
+  офферов нет (безопасный отказ).
+- **`keflab-offers` и `shellcheck`.** `shellcheck` на машине разработки не установлен, поэтому
+  проверены `bash -n` и песочница на временных путях (`KEFLAB_OFFERS_SANDBOX=1`). Песочница
+  в root-ветке не действует: под root пути фиксированы.
 
 ## Структура деплоя
 
@@ -440,7 +622,7 @@ deploy/
   systemd/      keflab.service, keflab-staging.service
   scripts/      activate.sh, rollback.sh, remote-rollback.sh, lib.sh,
                 csp-hashes.mjs, check-cert.sh, check-availability.sh, check-deploy.mjs
-  sbin/         keflab-install-csp (root, /usr/local/sbin)
+  sbin/         keflab-install-csp, keflab-offers (root, /usr/local/sbin)
   sudoers/      keflab-deploy
 .github/workflows/deploy.yml
 .env.example

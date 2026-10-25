@@ -1,0 +1,22 @@
+{
+  "siteName": "keflab.ru",
+  "siteUrl": "https://keflab.ru",
+  "media": {
+    "registered": true,
+    "name": "Тестовое СМИ",
+    "founder": "Тестовый учредитель",
+    "editorInChief": "Тестов Тест Тестович",
+    "email": "test@example.com",
+    "phone": "+7 000 000-00-00",
+    "registrationNumber": "ЭЛ № ТЕСТ-0000",
+    "registrationAuthority": "Тестовый регистрирующий орган"
+  },
+  "riskWarning": "Тестовое предупреждение о рисках",
+  "stopWords": [
+    "гарантированный выигрыш",
+    "без риска",
+    "лёгкие деньги",
+    "легкие деньги",
+    "заработок"
+  ]
+}

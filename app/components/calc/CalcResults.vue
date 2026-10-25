@@ -11,11 +11,13 @@ import {
 } from '~/lib/texts'
 import { formatMoney } from '~/lib/format'
 import { isBelowMinStake } from '~/lib/bookmaker-page'
+import OfferBlock from '../offers/OfferBlock.vue'
 import CombinationsTable from './results/CombinationsTable.vue'
 import CompareTable from './results/CompareTable.vue'
 import MoneyValue from './results/MoneyValue.vue'
 import ScenariosTable from './results/ScenariosTable.vue'
 
+const offersAllowed = useOfferSlotAllowed()
 const props = defineProps<{ calc: SystemCalc }>()
 
 // Поля calc — ref'ы; unref работает и если страница передала reactive(calc).
@@ -194,6 +196,7 @@ function onKeydown(e: KeyboardEvent, i: number) {
     </template>
     <!-- Дополнительные действия с расчётом, например «Скопировать ссылку». -->
     <slot />
+    <OfferBlock v-if="offersAllowed" placement="calc-result" />
   </section>
 </template>
 

@@ -1,0 +1,18 @@
+[
+  {
+    "slug": "test-rules-bk",
+    "name": "Тестовый БК",
+    "legalEntity": "Вымышленное ООО «Тест»",
+    "licenseInfo": "Вымышленные сведения для автотестов",
+    "systemRules": {
+      "stakeSplit": "per_combination",
+      "stakeSplitNote": "Вымышленное пояснение к делению ставки.",
+      "minStakePerCombination": "10",
+      "voidRule": "Вымышленное правило возврата.",
+      "halfRule": "Вымышленное правило половин.",
+      "maxEvents": 12
+    },
+    "sourceUrl": "https://rules.fresh-bk.example/system",
+    "checkedAt": "TODAY-10"
+  }
+]
