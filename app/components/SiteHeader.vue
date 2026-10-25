@@ -5,6 +5,7 @@
       <nav class="site-header__nav" aria-label="Калькуляторы">
         <NuxtLink to="/" class="site-header__link">Система</NuxtLink>
         <NuxtLink to="/kalkulyator-ekspressa/" class="site-header__link">Экспресс</NuxtLink>
+        <NuxtLink to="/kalkulyatory/" class="site-header__link">Ещё</NuxtLink>
         <NuxtLink to="/chto-takoe-sistema-v-stavkah/" class="site-header__link">Разбор</NuxtLink>
       </nav>
     </div>

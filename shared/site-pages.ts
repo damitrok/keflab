@@ -108,6 +108,31 @@ export const BOOKMAKER_PAGES: readonly SitePage[] = publishableBookmakers(
   prerender: true,
 }))
 
+/** Мелкие калькуляторы (шаг 11): адрес → файл страницы. */
+export const SMALL_CALCULATORS = [
+  { slug: 'marzha', title: 'Маржа букмекера' },
+  { slug: 'slozhenie-koefficientov', title: 'Сложение коэффициентов' },
+  { slug: 'dogon', title: 'Калькулятор догона' },
+  { slug: 'konverter-koefficientov', title: 'Конвертер коэффициентов' },
+] as const
+
+const SMALL_CALCULATOR_PAGES: readonly SitePage[] = [
+  {
+    path: '/kalkulyatory/',
+    source: 'app/pages/kalkulyatory/index.vue',
+    kind: 'article',
+    indexable: true,
+    prerender: true,
+  },
+  ...SMALL_CALCULATORS.map(({ slug }): SitePage => ({
+    path: `/kalkulyatory/${slug}/`,
+    source: `app/pages/kalkulyatory/${slug}.vue`,
+    kind: 'calculator',
+    indexable: true,
+    prerender: true,
+  })),
+]
+
 export const SITE_PAGES: readonly SitePage[] = [
   ...STATIC_PAGES,
   ...SYSTEM_PAGES.map(({ k, n }): SitePage => ({
@@ -117,6 +142,7 @@ export const SITE_PAGES: readonly SitePage[] = [
     indexable: true,
     prerender: true,
   })),
+  ...SMALL_CALCULATOR_PAGES,
   ...BOOKMAKER_PAGES,
 ]
 
