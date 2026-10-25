@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { SystemCalc } from '~/composables/useSystemCalc'
-import type { SystemResult } from '~/lib/calc'
+import { D, type SystemResult } from '~/lib/calc'
 import { GOALS, sendGoal } from '~/lib/goals'
 import {
   CALC_ERROR_TEXTS,
@@ -10,6 +10,7 @@ import {
   UNEVEN_SPLIT_TEXT,
 } from '~/lib/texts'
 import { formatMoney } from '~/lib/format'
+import { isBelowMinStake } from '~/lib/bookmaker-page'
 import CombinationsTable from './results/CombinationsTable.vue'
 import CompareTable from './results/CompareTable.vue'
 import MoneyValue from './results/MoneyValue.vue'
@@ -27,6 +28,16 @@ const scenarios = computed(() => unref(props.calc.scenarios))
 const compare = computed(() => unref(props.calc.compare))
 const calcFailed = computed(() => unref(props.calc.calcFailed))
 const eventsCount = computed(() => unref(props.calc.events).length)
+
+// Правила БК (страница шага 10): ставка на комбинацию меньше минимума.
+const belowMinStake = computed(() => {
+  const rules = props.calc.rules
+  const r = okResult.value
+  if (!rules || !r) return null
+  return isBelowMinStake(r.shape.stakePerCombination.toFixed(), rules.minStakePerCombination)
+    ? `У ${rules.bookmakerName} минимальная ставка на комбинацию — ${formatMoney(D(rules.minStakePerCombination)).text}`
+    : null
+})
 
 const settled = computed(() => {
   const s = okResult.value?.settlement
@@ -120,6 +131,9 @@ function onKeydown(e: KeyboardEvent, i: number) {
             <MoneyValue :value="okResult.shape.totalStake" />
           </template>
           <template v-else>Ставка <MoneyValue :value="okResult.shape.totalStake" /></template>
+        </p>
+        <p v-if="belowMinStake" class="summary__warn" data-testid="below-min-stake">
+          {{ belowMinStake }}
         </p>
         <p v-if="okResult.shape.unevenSplit" class="summary__warn" data-testid="uneven-split">
           {{ UNEVEN_SPLIT_TEXT }}

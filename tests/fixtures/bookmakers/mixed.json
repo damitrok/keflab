@@ -1,0 +1,42 @@
+[
+  {
+    "slug": "test-fresh",
+    "name": "Тестовый БК",
+    "legalEntity": "Вымышленное ООО «Тест»",
+    "licenseInfo": "Вымышленные сведения для автотестов",
+    "systemRules": {
+      "stakeSplit": "per_combination",
+      "stakeSplitNote": "Вымышленное пояснение к делению ставки.",
+      "minStakePerCombination": "10",
+      "voidRule": "Вымышленное правило возврата.",
+      "halfRule": "Вымышленное правило половин.",
+      "maxEvents": 12
+    },
+    "sourceUrl": "https://rules.fresh-bk.example/system",
+    "checkedAt": "2026-01-01"
+  },
+  {
+    "slug": "test-stale",
+    "name": "Тестовый БК: просрочен",
+    "legalEntity": "Вымышленное ООО «Старое»",
+    "licenseInfo": "Вымышленные сведения для автотестов",
+    "systemRules": {
+      "stakeSplit": "total",
+      "minStakePerCombination": "10",
+      "voidRule": "Вымышленное правило возврата.",
+      "halfRule": "Вымышленное правило половин.",
+      "maxEvents": 8
+    },
+    "sourceUrl": "https://rules.stale-bk.example/system",
+    "checkedAt": "2026-01-01"
+  },
+  {
+    "slug": "test-norules",
+    "name": "Тестовый БК: без правил",
+    "legalEntity": "Вымышленное ООО «Пустое»",
+    "licenseInfo": "Вымышленные сведения для автотестов",
+    "systemRules": null,
+    "sourceUrl": "https://rules.norules-bk.example/system",
+    "checkedAt": null
+  }
+]

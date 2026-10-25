@@ -1,7 +1,7 @@
 // Проверка внешних ссылок: только домены из data/allowlist.json (и собственный keflab.ru).
 // Запуск: node scripts/check-links.ts [--root <каталог>]
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
-import { join, relative, resolve } from 'node:path'
+import { join, relative, resolve, sep } from 'node:path'
 
 export const OWN_DOMAIN = 'keflab.ru'
 
@@ -99,7 +99,14 @@ export function checkLinks(root: string): CheckResult {
   const allowlist = loadAllowlist(root)
   const files: string[] = []
   walk(join(root, 'app'), (p) => /\.(vue|ts|js|md)$/.test(p), files)
-  walk(join(root, 'data'), (p) => p.endsWith('.json'), files)
+  // data/bookmakers.json не сканируем: sourceUrl — источник правил, на странице
+  // он выводится текстом без ссылки (до шага 13 ссылок на БК нет). Любая
+  // настоящая ссылка попадёт в собранный HTML ниже и будет поймана там.
+  walk(
+    join(root, 'data'),
+    (p) => p.endsWith('.json') && !p.endsWith(`${sep}bookmakers.json`),
+    files,
+  )
   walk(join(root, 'server'), (p) => p.endsWith('.ts'), files)
   walk(join(root, '.output', 'public'), (p) => p.endsWith('.html'), files)
 

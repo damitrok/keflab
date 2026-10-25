@@ -1,12 +1,18 @@
 <script setup lang="ts">
 import type { EventStatus, StakeMode } from '~/lib/calc'
 import type { SystemCalc } from '~/composables/useSystemCalc'
-import { MAX_EVENTS } from '~/lib/calc'
 import EventRow from './form/EventRow.vue'
 import StakeField from './form/StakeField.vue'
 import SystemSelect from './form/SystemSelect.vue'
 
 const props = defineProps<{ calc: SystemCalc }>()
+
+const limitText = computed(() => {
+  const rules = props.calc.rules
+  return rules
+    ? `У ${rules.bookmakerName} максимум ${props.calc.eventsLimit} событий`
+    : `Максимум ${props.calc.eventsLimit} событий`
+})
 
 const stakeField = ref<InstanceType<typeof StakeField> | null>(null)
 
@@ -108,9 +114,9 @@ function setStatus(id: number, value: EventStatus) {
       <button type="button" class="actions__btn" :disabled="!calc.canAdd.value" @click="onAdd">
         Добавить событие
       </button>
-      <span v-if="!calc.canAdd.value" class="actions__limit"
-        >Максимум {{ MAX_EVENTS }} событий</span
-      >
+      <span v-if="!calc.canAdd.value" class="actions__limit" data-testid="events-limit">{{
+        limitText
+      }}</span>
       <button type="button" class="actions__btn actions__btn--ghost" @click="onClear">
         Очистить всё
       </button>

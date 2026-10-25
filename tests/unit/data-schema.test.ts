@@ -28,7 +28,7 @@ const validBk = {
   legalEntity: 'ООО БК',
   licenseInfo: 'Лицензия №1',
   systemRules: {
-    stakeSplit: 'поровну',
+    stakeSplit: 'total',
     minStakePerCombination: '10',
     voidRule: 'a',
     halfRule: 'b',
@@ -96,19 +96,62 @@ describe('offers', () => {
 })
 
 describe('bookmakers', () => {
-  it('принимает корректную запись', () => {
+  const withRules = (patch: Record<string, unknown>) => [
+    { ...validBk, systemRules: { ...validBk.systemRules, ...patch } },
+  ]
+  const messages = (input: unknown): string =>
+    (bookmakersSchema.safeParse(input).error?.issues ?? []).map((i) => i.message).join('\n')
+
+  it('принимает корректную запись с правилами', () => {
     expect(bookmakersSchema.safeParse([validBk]).success).toBe(true)
+    expect(
+      bookmakersSchema.safeParse(withRules({ stakeSplit: 'per_combination', stakeSplitNote: 'a' }))
+        .success,
+    ).toBe(true)
   })
-  it('отвергает плохие URL, дату и maxEvents', () => {
+  it('systemRules: null и checkedAt: null допустимы', () => {
+    expect(
+      bookmakersSchema.safeParse([{ ...validBk, systemRules: null, checkedAt: null }]).success,
+    ).toBe(true)
+  })
+  it('stakeSplit не из enum: понятная ошибка', () => {
+    const input = withRules({ stakeSplit: 'поровну' })
+    expect(bookmakersSchema.safeParse(input).success).toBe(false)
+    expect(messages(input)).toContain('"total"')
+    expect(messages(input)).toContain('"per_combination"')
+  })
+  it.each(['10', '0.50', '1000.5'])('minStakePerCombination %s допустима', (v) => {
+    expect(bookmakersSchema.safeParse(withRules({ minStakePerCombination: v })).success).toBe(true)
+  })
+  it.each(['10,5', 'abc', '', '-1', '1.234', 10, null])(
+    'minStakePerCombination %j отвергается',
+    (v) => {
+      expect(bookmakersSchema.safeParse(withRules({ minStakePerCombination: v })).success).toBe(
+        false,
+      )
+    },
+  )
+  it.each([3, 16])('maxEvents %i допустимо', (n) => {
+    expect(bookmakersSchema.safeParse(withRules({ maxEvents: n })).success).toBe(true)
+  })
+  it.each([2, 17, 0, 5.5, '12'])('maxEvents %j отвергается', (n) => {
+    expect(bookmakersSchema.safeParse(withRules({ maxEvents: n })).success).toBe(false)
+  })
+  it('лишнее поле в systemRules отвергается (strict)', () => {
+    expect(bookmakersSchema.safeParse(withRules({ extra: 1 })).success).toBe(false)
+  })
+  it('пустой voidRule и halfRule отвергаются', () => {
+    expect(bookmakersSchema.safeParse(withRules({ voidRule: ' ' })).success).toBe(false)
+    expect(bookmakersSchema.safeParse(withRules({ halfRule: '' })).success).toBe(false)
+  })
+  it('отвергает плохие URL и дату', () => {
     expect(bookmakersSchema.safeParse([{ ...validBk, sourceUrl: 'not-url' }]).success).toBe(false)
     expect(bookmakersSchema.safeParse([{ ...validBk, checkedAt: '01.05.2026' }]).success).toBe(
       false,
     )
-    expect(
-      bookmakersSchema.safeParse([
-        { ...validBk, systemRules: { ...validBk.systemRules, maxEvents: 0 } },
-      ]).success,
-    ).toBe(false)
+    expect(bookmakersSchema.safeParse([{ ...validBk, checkedAt: '2026-02-30' }]).success).toBe(
+      false,
+    )
   })
   it('отвергает дубли slug', () => {
     expect(bookmakersSchema.safeParse([validBk, validBk]).success).toBe(false)

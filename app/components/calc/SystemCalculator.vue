@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { useShareQuery, useShareState } from '~/composables/useShareState'
-import { useSystemCalc } from '~/composables/useSystemCalc'
+import { useSystemCalc, type CalcRules } from '~/composables/useSystemCalc'
 import type { DecodeResult } from '~/lib/share-state'
 import CalcForm from './CalcForm.vue'
 import CalcResults from './CalcResults.vue'
@@ -16,8 +16,10 @@ const props = withDefaults(
     share?: boolean
     /** Ключ localStorage; null — не сохранять (например, мини-калькулятор в статье). */
     storageKey?: string | null
+    /** Правила БК (шаг 10): режим ставки, максимум событий, минимальная ставка. */
+    rules?: CalcRules | null
   }>(),
-  { n: undefined, k: undefined, share: true, storageKey: undefined },
+  { n: undefined, k: undefined, share: true, storageKey: undefined, rules: null },
 )
 
 // Расчёт из ссылки применяется сразу, в том числе на сервере.
@@ -26,6 +28,7 @@ const calc = useSystemCalc({
   n: props.n,
   k: props.k,
   storageKey: props.storageKey,
+  rules: props.rules,
   initial: decoded.kind === 'ok' ? decoded.snapshot : null,
 })
 const share = props.share ? useShareState(calc, decoded) : null

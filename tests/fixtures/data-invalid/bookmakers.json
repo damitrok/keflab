@@ -1,1 +1,17 @@
-[]
+[
+  {
+    "slug": "test-bk",
+    "name": "Тестовый БК",
+    "legalEntity": "Тестовое ООО",
+    "licenseInfo": "Вымышленная запись для проверки схемы",
+    "systemRules": {
+      "stakeSplit": "поровну",
+      "minStakePerCombination": "10,5",
+      "voidRule": "Тест",
+      "halfRule": "Тест",
+      "maxEvents": 17
+    },
+    "sourceUrl": "https://example.test/rules",
+    "checkedAt": "2026-05-01"
+  }
+]

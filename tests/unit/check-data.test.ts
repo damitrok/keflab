@@ -34,6 +34,14 @@ describe('validateDataDir', () => {
     expect(errors.some((e) => e.includes('allowlist.json') && e.includes('domains[0]'))).toBe(true)
   })
 
+  it('фикстура с ошибками в systemRules: enum, сумма, maxEvents', () => {
+    const errors = validateDataDir(join(root, 'tests/fixtures/data-invalid'))
+    const bk = errors.filter((e) => e.includes('bookmakers.json'))
+    expect(bk.some((e) => e.includes('stakeSplit'))).toBe(true)
+    expect(bk.some((e) => e.includes('minStakePerCombination'))).toBe(true)
+    expect(bk.some((e) => e.includes('maxEvents'))).toBe(true)
+  })
+
   it('синтаксическая ошибка JSON с позицией', () => {
     const dir = tmpCopyOfData()
     writeFileSync(join(dir, 'offers.json'), '[\n  { "id": }\n]')

@@ -36,7 +36,20 @@ export interface CompareScenarios {
   singles: Scenarios
 }
 
+/** Правила конкретного БК (шаг 10): настройки калькулятора на странице БК. */
+export interface CalcRules {
+  bookmakerName: string
+  /** Начальный режим ставки. */
+  stakeMode: StakeMode
+  /** Максимум событий у БК (3..16). */
+  maxEvents: number
+  /** Минимальная ставка на комбинацию, рубли строкой. */
+  minStakePerCombination: string
+}
+
 export interface SystemCalcOptions {
+  /** Правила БК; без них калькулятор работает как обычно. */
+  rules?: CalcRules | null
   /** Число событий в начальном состоянии (по умолчанию 3). */
   n?: number
   /** K в начальном состоянии (по умолчанию 2). */
@@ -97,7 +110,12 @@ function writeStorage(key: string, value: Snapshot): void {
  * итог, сценарии и сравнение. Вся математика — в ~/lib/calc.
  */
 export function useSystemCalc(options: SystemCalcOptions = {}) {
-  const initialN = Math.min(Math.max(options.n ?? MIN_EVENTS, MIN_EVENTS), MAX_EVENTS)
+  const rules = options.rules ?? null
+  const eventsLimit = rules
+    ? Math.min(Math.max(rules.maxEvents, MIN_EVENTS), MAX_EVENTS)
+    : MAX_EVENTS
+  const initialStakeMode: StakeMode = rules?.stakeMode ?? 'total'
+  const initialN = Math.min(Math.max(options.n ?? MIN_EVENTS, MIN_EVENTS), eventsLimit)
   const initialK = Math.min(Math.max(options.k ?? 2, 2), initialN - 1)
   const storageKey = options.storageKey === undefined ? DEFAULT_STORAGE_KEY : options.storageKey
 
@@ -105,7 +123,7 @@ export function useSystemCalc(options: SystemCalcOptions = {}) {
   const blankEvent = (): EventInput => ({ id: nextId++, odds: '', status: 'pending' })
 
   const stakeInput = ref('')
-  const stakeMode = ref<StakeMode>('total')
+  const stakeMode = ref<StakeMode>(initialStakeMode)
   const k = ref(initialK)
   const events = ref<EventInput[]>(Array.from({ length: initialN }, blankEvent))
   if (options.initial) {
@@ -118,7 +136,7 @@ export function useSystemCalc(options: SystemCalcOptions = {}) {
   const notice = ref<string | null>(null)
 
   const n = computed(() => events.value.length)
-  const canAdd = computed(() => n.value < MAX_EVENTS)
+  const canAdd = computed(() => n.value < eventsLimit)
   const canRemove = computed(() => n.value > MIN_EVENTS)
   /** Допустимые K для текущего N: 2 ≤ K < N. */
   const kOptions = computed(() =>
@@ -252,7 +270,7 @@ export function useSystemCalc(options: SystemCalcOptions = {}) {
   function clearAll(): void {
     nextId = 1
     stakeInput.value = ''
-    stakeMode.value = 'total'
+    stakeMode.value = initialStakeMode
     events.value = Array.from({ length: initialN }, blankEvent)
     k.value = initialK
     notice.value = null
@@ -275,6 +293,7 @@ export function useSystemCalc(options: SystemCalcOptions = {}) {
       if (
         !options.initial &&
         saved &&
+        saved.events.length <= eventsLimit &&
         (options.n === undefined || saved.events.length === initialN)
       ) {
         restore(saved)
@@ -293,6 +312,10 @@ export function useSystemCalc(options: SystemCalcOptions = {}) {
     notice,
     n,
     canAdd,
+    /** Максимум событий (у БК или общий). */
+    eventsLimit,
+    /** Правила БК или null. */
+    rules,
     canRemove,
     kOptions,
     stakeError,

@@ -2,6 +2,9 @@
 // SEO. Новую страницу нужно добавить сюда (шаги 9–11 дополняют список).
 // Импорт: `#shared/site-pages` — доступен и приложению, и серверу.
 
+import bookmakers from '../data/bookmakers.json' with { type: 'json' }
+import { bookmakerPagePath, publishableBookmakers, todayMoscow } from './bookmakers.ts'
+
 export type PageKind = 'calculator' | 'article' | 'service'
 
 export interface SitePage {
@@ -89,6 +92,22 @@ const STATIC_PAGES: readonly SitePage[] = [
   },
 ]
 
+/**
+ * Страницы правил БК (шаг 10): только с заполненными правилами и проверкой не
+ * старше 180 дней на дату сборки (по Москве). Остальные не собираются и не
+ * попадают в sitemap.
+ */
+export const BOOKMAKER_PAGES: readonly SitePage[] = publishableBookmakers(
+  bookmakers as { slug: string; systemRules: unknown | null; checkedAt: string | null }[],
+  todayMoscow(),
+).map((b) => ({
+  path: bookmakerPagePath(b.slug),
+  source: 'data/bookmakers.json',
+  kind: 'article',
+  indexable: true,
+  prerender: true,
+}))
+
 export const SITE_PAGES: readonly SitePage[] = [
   ...STATIC_PAGES,
   ...SYSTEM_PAGES.map(({ k, n }): SitePage => ({
@@ -98,6 +117,7 @@ export const SITE_PAGES: readonly SitePage[] = [
     indexable: true,
     prerender: true,
   })),
+  ...BOOKMAKER_PAGES,
 ]
 
 /** Удалённые адреса: отвечают 410 Gone. Добавлять сюда при удалении страниц. */

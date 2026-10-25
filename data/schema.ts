@@ -15,13 +15,29 @@ const slug = z
   .string()
   .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'slug: строчные латинские буквы, цифры и дефис')
 
+/** Сумма в рублях строкой: «10», «0.5» — без number, чтобы не терять точность. */
+const rubles = z
+  .string()
+  .regex(/^\d{1,9}(?:\.\d{1,2})?$/, 'сумма строкой, например "10" или "0.50"')
+
+/**
+ * Правила расчёта системы у БК (шаг 10). Машиночитаемые поля калькулятор
+ * берёт как настройки; текстовые показываются на странице как есть.
+ */
 export const systemRulesSchema = z
   .object({
-    stakeSplit: nonEmpty,
-    minStakePerCombination: nonEmpty,
+    /** Как вводится ставка: на всю систему или на одну комбинацию. */
+    stakeSplit: z.enum(['total', 'per_combination'], {
+      message: 'stakeSplit: "total" (на всю систему) или "per_combination" (на комбинацию)',
+    }),
+    /** Пояснение к делению ставки словами букмекера (например, про округление). */
+    stakeSplitNote: nonEmpty.optional(),
+    minStakePerCombination: rubles,
+    /** Как считаются возвраты (текст для страницы). */
     voidRule: nonEmpty,
+    /** Как считаются половины (текст для страницы). */
     halfRule: nonEmpty,
-    maxEvents: z.number().int('нужно целое число').positive('нужно число больше нуля'),
+    maxEvents: z.number().int('нужно целое число').min(3, 'минимум 3').max(16, 'максимум 16'),
   })
   .strict()
 
@@ -31,9 +47,11 @@ export const bookmakerSchema = z
     name: nonEmpty,
     legalEntity: nonEmpty,
     licenseInfo: nonEmpty,
-    systemRules: systemRulesSchema,
+    /** null — правила ещё не собраны: страница БК не собирается. */
+    systemRules: systemRulesSchema.nullable(),
     sourceUrl: httpUrl,
-    checkedAt: isoDate,
+    /** Дата проверки правил человеком; старше 180 дней — страница не собирается. */
+    checkedAt: isoDate.nullable(),
   })
   .strict()
 

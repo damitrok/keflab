@@ -1,8 +1,8 @@
-# Gates: шаг 9 — страницы систем K из N
+# Gates: шаг 10 — правила букмекеров
 
-OWNS: app/**, shared/site-pages.ts, scripts/gen-lastmod.mjs, tests/**
+OWNS: app/**, data/schema.ts, shared/**, scripts/**, tests/**
 
-Scope: 21 страница /sistema-k-iz-n/ (3 ≤ N ≤ 8, 2 ≤ K < N) с калькулятором с заданными N и K, таблицей комбинаций и побед, примером из движка, сравнением с соседними системами, FAQ и ссылками; все в sitemap; гейты шагов 1–8 — в истории git.
+Scope: страницы /bk/<slug>/kak-schitaetsya-sistema/ из data/bookmakers.json — только с заполненными правилами и проверкой не старше 180 дней; дата проверки и источник видны, ссылок на сайт БК нет; калькулятор берёт правила БК (режим ставки, максимум событий, минимальная ставка на комбинацию); гейты шагов 1–9 — в истории git.
 
 - [x] G1: линтер проходит
   CHECK: npm run lint && echo GATE_LINT_OK
@@ -14,32 +14,27 @@ Scope: 21 страница /sistema-k-iz-n/ (3 ≤ N ≤ 8, 2 ≤ K < N) с ка
   EXPECT: GATE_TYPECHECK_OK
   EVIDENCE: automatic-evidence=v1; definition-sha256=b55b7c8e520339601268674b6c62c81c5cacdb718784d554a415fcb725729f4c; exit=0; EXPECT=matched; output-sha256=f8a32e4b14dc4337629dcd24f60c8f4d15d8c76e0724450727ed7a03fa888cb4; output-bytes=62; shell=/bin/sh; cwd=/Users/dmitriymitrokhin/Desktop/my-project/betting; path=f54d7d698ebf/18 entries
 
-- [x] G3: юнит-тесты (включая снапшот примера 3 из 5 против движка) проходят
+- [x] G3: юнит-тесты (схема БК, отбор по сроку проверки, данные страницы) проходят
   CHECK: npm test && echo GATE_UNIT_OK
   EXPECT: GATE_UNIT_OK
-  EVIDENCE: automatic-evidence=v1; definition-sha256=278326bc14f1fc435a51db07db8624860d16173663ef6c5591119aeb225f8f38; exit=0; EXPECT=matched; output-sha256=01ad2a5f88bb94bb62405ae9ab7778a1d2fa069a55bae6904323f031b2a4b7b7; output-bytes=1335; shell=/bin/sh; cwd=/Users/dmitriymitrokhin/Desktop/my-project/betting; path=f54d7d698ebf/18 entries
+  EVIDENCE: automatic-evidence=v1; definition-sha256=278326bc14f1fc435a51db07db8624860d16173663ef6c5591119aeb225f8f38; exit=0; EXPECT=matched; output-sha256=d7fc95c980233c344630cd825360a43c38de95731c15d4a4897aa7c0559b5358; output-bytes=1334; shell=/bin/sh; cwd=/Users/dmitriymitrokhin/Desktop/my-project/betting; path=f54d7d698ebf/18 entries
 
-- [x] G4: собирается 21 страница систем, проверка ссылок проходит
-  CHECK: npm run build && npm run check:links && test "$(ls -d .output/public/sistema-*-iz-*/ | wc -l | tr -d ' ')" = 21 && echo GATE_BUILD_21_OK
-  EXPECT: GATE_BUILD_21_OK
-  EVIDENCE: automatic-evidence=v1; definition-sha256=293ac61baa2f2b56ee9c6d2e284b9f50b48668fe78f2ea037d73c4f4ce2ada05; exit=0; EXPECT=matched; output-sha256=6ef045960d6840c6cd5e245db21af6a6a8287e035903403a5eb486da9ba5e47c; output-bytes=28573; shell=/bin/sh; cwd=/Users/dmitriymitrokhin/Desktop/my-project/betting; path=f54d7d698ebf/18 entries
+- [x] G4: сборка на реальных данных, ссылки и SEO проходят
+  CHECK: npm run check:data && npm run build && npm run check:links && npm run check:seo && echo GATE_BUILD_OK
+  EXPECT: GATE_BUILD_OK
+  EVIDENCE: automatic-evidence=v1; definition-sha256=91117c9ef5edfb36e1ca9f6967a239e7c651a2b087610700a03809a7503672ff; exit=0; EXPECT=matched; output-sha256=e0286bfa947aefe635e55a947b3e02b711328fe7c68708e0afdd2890ff7962a3; output-bytes=32959; shell=/bin/sh; cwd=/Users/dmitriymitrokhin/Desktop/my-project/betting; path=f54d7d698ebf/18 entries
 
-- [x] G5: у каждой страницы свои title и description, все 21 в sitemap, JSON-LD корректен
-  CHECK: npm run check:seo && echo GATE_SEO_OK
-  EXPECT: GATE_SEO_OK
-  EVIDENCE: automatic-evidence=v1; definition-sha256=02a609cf37799a4465e56d5b2975655fd67d6122d56bd31247ed71fe1f41d7b1; exit=0; EXPECT=matched; output-sha256=91d4154407e4da53ae3503facf4be88daa756e09e5b8b4451892c6d36f7c5644; output-bytes=1223; shell=/bin/sh; cwd=/Users/dmitriymitrokhin/Desktop/my-project/betting; path=f54d7d698ebf/18 entries
+- [x] G5: БК без правил или с просроченной проверкой не попадает ни в сборку, ни в sitemap; на странице видны дата проверки и источник, ссылок на сайт БК нет (сборка копии с тестовыми данными)
+  CHECK: node scripts/gates/bookmakers.mjs && echo GATE_BOOKMAKERS_OK
+  EXPECT: GATE_BOOKMAKERS_OK
+  EVIDENCE: automatic-evidence=v1; definition-sha256=191949d53b08b8b16703f25717d36d866f4a7fe98d4a399c5856bb9ec2f9d26f; exit=0; EXPECT=matched; output-sha256=99db62191ef3ce9035639836986657e115259456caf853f3454800de2cf63181; output-bytes=940; shell=/bin/sh; cwd=/Users/dmitriymitrokhin/Desktop/my-project/betting; path=f54d7d698ebf/18 entries
 
-- [x] G6: e2e страниц систем (сценарий с телефона «система 3 из 5», 404 для несуществующих, axe) проходят
-  CHECK: npx playwright test tests/e2e/system-pages && echo GATE_E2E_SYSTEMS_OK
-  EXPECT: GATE_E2E_SYSTEMS_OK
-  EVIDENCE: automatic-evidence=v1; definition-sha256=cab3e0fc56894b2e76c6ce0f815fc6f5c438ba4aba7793122298676a8ea1ba59; exit=0; EXPECT=matched; output-sha256=ed2f7d6c9b2add553ac37777b44cab3b9055d6be515773a59ff43f1c23cc505e; output-bytes=16067; shell=/bin/sh; cwd=/Users/dmitriymitrokhin/Desktop/my-project/betting; path=f54d7d698ebf/18 entries
+- [x] G6: битые данные всё так же роняют check:data (регрессия шага 1)
+  CHECK: node scripts/check-data.ts --dir tests/fixtures/data-invalid > /dev/null 2>&1; test $? -ne 0 && echo GATE_DATA_NEGATIVE_OK
+  EXPECT: GATE_DATA_NEGATIVE_OK
+  EVIDENCE: automatic-evidence=v1; definition-sha256=f9a228508814ec8aedbe205e6179d6604a84886899f306630f700734d817cc51; exit=0; EXPECT=matched; output-sha256=dd5f3de6c738264ecb93dac943ab833dc4eb4c92d772950fb29d30ee908d3b6e; output-bytes=22; shell=/bin/sh; cwd=/Users/dmitriymitrokhin/Desktop/my-project/betting; path=f54d7d698ebf/18 entries
 
-- [x] G7: e2e всего сайта (регрессия) проходят
+- [x] G7: e2e всего сайта (регрессия калькуляторов) проходят
   CHECK: npm run test:e2e && echo GATE_E2E_ALL_OK
   EXPECT: GATE_E2E_ALL_OK
-  EVIDENCE: automatic-evidence=v1; definition-sha256=8a51bae5a0e8c04dc3acb33e51b9c6736f20d2db217beea5c76c9cfd1410b16b; exit=0; EXPECT=matched; output-sha256=1bff5f9ac0d8c894b1f7217bd827826dfaf2d8686a088146bc6141703fdf2dd6; output-bytes=110659; shell=/bin/sh; cwd=/Users/dmitriymitrokhin/Desktop/my-project/betting; path=f54d7d698ebf/18 entries
-
-- [x] G8: стоп-слова не встречаются на страницах (включая 21 систему)
-  CHECK: node scripts/gates/stopwords.mjs && echo GATE_STOPWORDS_OK
-  EXPECT: GATE_STOPWORDS_OK
-  EVIDENCE: automatic-evidence=v1; definition-sha256=c8c48b436f964c3a770307b2cfdf076c022b648bfd7aa75e95f042da56041fe1; exit=0; EXPECT=matched; output-sha256=3000fdf84fa4566809943fde50fe3d451c0d4287a9269af01675e590736a8916; output-bytes=1345; shell=/bin/sh; cwd=/Users/dmitriymitrokhin/Desktop/my-project/betting; path=f54d7d698ebf/18 entries
+  EVIDENCE: automatic-evidence=v1; definition-sha256=8a51bae5a0e8c04dc3acb33e51b9c6736f20d2db217beea5c76c9cfd1410b16b; exit=0; EXPECT=matched; output-sha256=d511b248f88298212f6484b0b29650309fd70f5bb48af8bc86a13d45d76b9fa7; output-bytes=110611; shell=/bin/sh; cwd=/Users/dmitriymitrokhin/Desktop/my-project/betting; path=f54d7d698ebf/18 entries
