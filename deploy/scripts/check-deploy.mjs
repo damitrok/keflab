@@ -8,6 +8,11 @@
 //   - nginx: заголовки безопасности в каждом location HTTPS-сервера (включая www), include CSP
 //     только из /etc/nginx/keflab/csp (никогда из /srv), в return нет $uri, /go пишет лог без IP,
 //     error_log /go — crit, /api/error с limit_req и только POST, главная кэшируется без параметров;
+//   - nginx, виджет /embed/ (шаг 12): frame-ancestors * только в security-headers-embed.conf и только
+//     в location ^~ /embed/; везде остальное — frame-ancestors 'none'; в CSP /embed/ нет Метрики;
+//     X-Robots-Tag noindex; кэш /embed/ только для пустого query и theme=light|dark;
+//   - самопроверка: проверки гоняются на копиях текста с намеренными ошибками (мутации),
+//     каждая мутация обязана быть обнаружена; сами файлы не меняются;
 //   - systemd: перезапуск, непривилегированный пользователь, изоляция сети и процесса;
 //   - sudoers: deploy не может сам вызвать nginx или reload nginx;
 //   - root-утилита CSP: только строгий шаблон хэша и откат при ошибке nginx -t.
@@ -16,7 +21,7 @@
 import { spawnSync } from 'node:child_process'
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { createRequire } from 'node:module'
-import { dirname, join, resolve } from 'node:path'
+import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
@@ -57,6 +62,12 @@ shellcheckAll([...shFiles, ...sbinFiles])
 
 // activate.sh не должен выполнять env-файл как shell.
 const activate = read('deploy/scripts/activate.sh')
+// Пробный запуск проверяет CSP виджета тем же способом, что и главную (шаг 12).
+for (const page of ['"/"', '"/embed/sistema/"', '"/embed/sistema/?theme=light"']) {
+  if (!activate.includes(`trial_csp_ok ${page}`)) {
+    fail(`activate.sh: пробный запуск не проверяет CSP страницы ${page}`)
+  }
+}
 if (/^\s*\.\s+"?\$ENV_FILE/m.test(activate) || /\bset\s+-a\b/.test(activate)) {
   fail('activate.sh: env-файл подключается как shell (нужен построчный разбор)')
 }
@@ -75,6 +86,11 @@ if (/\beval\b/.test(sbin)) fail('keflab-install-csp: eval запрещён')
 // --- Workflow ---
 const workflowPath = '.github/workflows/deploy.yml'
 const workflowText = read(workflowPath)
+for (const page of ['/embed/sistema/', '/embed/sistema/?theme=light']) {
+  if (!workflowText.includes(`${page}`)) {
+    fail(`${workflowPath}: хэши снимаются не со страницы ${page} (виджет)`)
+  }
+}
 let workflow
 try {
   const require = createRequire(join(ROOT, 'package.json'))
@@ -139,6 +155,17 @@ if (!sudoers.includes('/usr/local/sbin/keflab-install-csp production')) {
 
 // --- Nginx ---
 const SECURITY = 'snippets/security-headers.conf'
+const EMBED = 'snippets/security-headers-embed.conf'
+const EMBED_LOCATION = '^~ /embed/'
+const EMBED_REDIRECT = '= /embed/sistema'
+const SERVER_FILES = ['deploy/nginx/keflab.ru.conf', 'deploy/nginx/staging.keflab.ru.conf']
+const SNIPPET_DIR = 'deploy/nginx/snippets'
+const HEADERS_COMMON = [
+  'Strict-Transport-Security "max-age=31536000; includeSubDomains"',
+  'X-Content-Type-Options "nosniff"',
+  'Referrer-Policy "strict-origin-when-cross-origin"',
+  'Permissions-Policy "camera=(), microphone=(), geolocation=()"',
+]
 
 function stripComments(text) {
   return text
@@ -150,7 +177,8 @@ function stripComments(text) {
 /** Блоки вида «<keyword> <arg> { ... }» с учётом вложенных фигурных скобок. */
 function blocks(text, keyword) {
   const found = []
-  const re = new RegExp(`\\b${keyword}\\s*([^{]*?)\\s*\\{`, 'g')
+  // Ключевое слово — целым словом: `server_name` блоком не считается.
+  const re = new RegExp(`\\b${keyword}(?=[\\s{])\\s*([^{};]*?)\\s*\\{`, 'g')
   let match
   while ((match = re.exec(text)) !== null) {
     let depth = 1
@@ -170,7 +198,292 @@ function httpsServers(text) {
   return blocks(text, 'server').filter((server) => /\blisten\s+(\[::\]:)?443\b/.test(server.body))
 }
 
-const SERVER_FILES = ['deploy/nginx/keflab.ru.conf', 'deploy/nginx/staging.keflab.ru.conf']
+/** Директивы CSP из add_header Content-Security-Policy: Map имя → значение. */
+function cspDirectives(text) {
+  const match = text.match(/add_header\s+Content-Security-Policy\s+"([^"]*)"/)
+  if (!match) return null
+  const directives = new Map()
+  for (const part of match[1].split(';')) {
+    const trimmed = part.trim()
+    if (trimmed === '') continue
+    const [name, ...values] = trimmed.split(/\s+/)
+    directives.set(name, values.join(' '))
+  }
+  return directives
+}
+
+/** Общий набор заголовков (всё, кроме /embed/). Возвращает список проблем. */
+function securitySnippetProblems(rawText) {
+  const text = stripComments(rawText)
+  const csp = cspDirectives(text)
+  if (!csp) return ['нет Content-Security-Policy']
+  const problems = []
+  if (csp.get('frame-ancestors') !== "'none'") {
+    problems.push("frame-ancestors должен быть 'none' (встраивание разрешено только для /embed/)")
+  }
+  for (const needle of [
+    ...HEADERS_COMMON,
+    'X-Frame-Options "DENY"',
+    "default-src 'self'",
+    'https://mc.yandex.ru',
+    "frame-src 'self' https://mc.yandex.ru",
+    "base-uri 'self'",
+    "form-action 'self'",
+    '$keflab_script_hashes',
+  ]) {
+    if (!text.includes(needle)) problems.push(`нет ${needle}`)
+  }
+  return problems
+}
+
+/** Набор для /embed/ (виджет). Возвращает список проблем. */
+function embedSnippetProblems(rawText) {
+  const text = stripComments(rawText)
+  const csp = cspDirectives(text)
+  if (!csp) return ['нет Content-Security-Policy']
+  const problems = []
+  if (csp.get('frame-ancestors') !== '*') problems.push('frame-ancestors должен быть *')
+  for (const directive of [
+    'default-src',
+    'script-src',
+    'style-src',
+    'font-src',
+    'object-src',
+    'base-uri',
+    'form-action',
+  ]) {
+    if (!csp.has(directive)) problems.push(`в CSP нет ${directive}`)
+  }
+  if (!(csp.get('script-src') ?? '').includes('$keflab_script_hashes')) {
+    problems.push('script-src без $keflab_script_hashes (хэши inline-скриптов)')
+  }
+  if (csp.get('frame-src') !== "'none'") problems.push("frame-src должен быть 'none'")
+  if (csp.get('connect-src') !== "'self'") problems.push("connect-src должен быть 'self'")
+  if (/mc\.yandex\.ru/.test(text))
+    problems.push('в embed-наборе есть mc.yandex.ru (Метрики в виджете нет)')
+  if (/X-Frame-Options/i.test(text)) problems.push('X-Frame-Options на /embed/ запрещён')
+  for (const needle of HEADERS_COMMON) {
+    if (!text.includes(needle)) problems.push(`нет ${needle}`)
+  }
+  return problems
+}
+
+/** Файлы, где встречается frame-ancestors * (кроме набора /embed/). */
+function frameAncestorsStarLeaks(sources) {
+  return Object.keys(sources).filter(
+    (file) => !file.endsWith(EMBED) && /frame-ancestors\s+\*/.test(stripComments(sources[file])),
+  )
+}
+
+/** Карта кэша /embed/ и зоны в http-блоке. */
+function httpEmbedProblems(httpStripped) {
+  const problems = []
+  const map = httpStripped.match(/map\s+\$args\s+\$keflab_embed_nocache\s*\{([^}]*)\}/)
+  if (!map) {
+    problems.push('нет map $args $keflab_embed_nocache')
+  } else {
+    const body = map[1]
+    for (const key of ['""', '"theme=light"', '"theme=dark"']) {
+      if (!body.includes(`${key}`) || !new RegExp(`${key}\\s+0;`).test(body)) {
+        problems.push(`map $keflab_embed_nocache: ${key} должен давать 0`)
+      }
+    }
+    if (!/default\s+1;/.test(body))
+      problems.push('map $keflab_embed_nocache: default должен давать 1')
+  }
+  for (const zone of ['keflab_embed', 'keflab_staging_embed']) {
+    if (!new RegExp(`keys_zone=${zone}:`).test(httpStripped)) {
+      problems.push(`нет зоны кэша ${zone} (proxy_cache_path)`)
+    }
+  }
+  return problems
+}
+
+/** Один location ^~ /embed/: что обязано в нём быть. */
+function embedLocationProblems(where, body, isStaging) {
+  const problems = []
+  const node = isStaging ? 'keflab_staging_node' : 'keflab_node'
+  const zone = isStaging ? 'keflab_staging_embed' : 'keflab_embed'
+  if (!body.includes(EMBED)) problems.push(`${where}: нет ${EMBED}`)
+  if (body.includes(SECURITY)) problems.push(`${where}: и ${SECURITY}, и embed — два CSP-заголовка`)
+  if (/\bframe-ancestors\b/.test(body))
+    problems.push(`${where}: CSP задаётся в сниппете, не в location`)
+  if (/add_header\s+X-Frame-Options/.test(body))
+    problems.push(`${where}: X-Frame-Options на /embed/ запрещён`)
+  if (/mc\.yandex\.ru/.test(body)) problems.push(`${where}: Метрика в виджете запрещена`)
+  if (!/proxy_hide_header\s+X-Frame-Options;/.test(body)) {
+    problems.push(
+      `${where}: Node может прислать X-Frame-Options, нет proxy_hide_header X-Frame-Options`,
+    )
+  }
+  if (!/proxy_hide_header\s+X-Robots-Tag;/.test(body)) {
+    problems.push(`${where}: нет proxy_hide_header X-Robots-Tag (дубль заголовка от Node)`)
+  }
+  if (!body.includes('proxy-node.conf')) problems.push(`${where}: нет proxy-node.conf`)
+  if (!body.includes(`proxy_pass http://${node};`))
+    problems.push(`${where}: proxy_pass не на ${node}`)
+  if (isStaging) {
+    if (/auth_basic\s+off/.test(body)) problems.push(`${where}: basic auth на staging отключён`)
+    if (!body.includes('staging-noindex.conf'))
+      problems.push(`${where}: нет noindex, nofollow (staging)`)
+  } else if (!/add_header\s+X-Robots-Tag\s+"noindex"/.test(body)) {
+    problems.push(`${where}: нет X-Robots-Tag noindex`)
+  }
+  if (!/access_log\s+\S+\s+keflab_main;/.test(body)) problems.push(`${where}: лог не keflab_main`)
+  if (!body.includes(`proxy_cache ${zone};`)) problems.push(`${where}: кэш не ${zone}`)
+  if (!body.includes('proxy_cache_bypass $keflab_embed_nocache;')) {
+    problems.push(`${where}: нет proxy_cache_bypass $keflab_embed_nocache`)
+  }
+  if (!body.includes('proxy_no_cache $keflab_embed_nocache;')) {
+    problems.push(`${where}: нет proxy_no_cache $keflab_embed_nocache`)
+  }
+  if (
+    !body.includes(
+      'proxy_cache_use_stale error timeout updating http_500 http_502 http_503 http_504;',
+    )
+  ) {
+    problems.push(`${where}: нет use_stale при падении Node`)
+  }
+  return problems
+}
+
+/** Проверки одного файла сервера (prod или staging). Возвращает список проблем. */
+function serverProblems(file, rawText, httpStripped) {
+  const problems = []
+  const text = stripComments(rawText)
+  const isStaging = file.includes('staging')
+  const cspInclude = isStaging
+    ? '/etc/nginx/keflab/csp/staging.conf'
+    : '/etc/nginx/keflab/csp/production.conf'
+  if (!text.includes(`include ${cspInclude};`)) problems.push(`${file}: нет include ${cspInclude}`)
+
+  // Ни один include nginx не указывает в /srv: туда пишет deploy.
+  for (const line of text.split('\n')) {
+    if (/^\s*include\s+\/srv\//.test(line)) {
+      problems.push(`${file}: include из /srv запрещён: ${line.trim()}`)
+    }
+  }
+  // Сниппеты берутся из репозитория: включённый файл обязан существовать.
+  for (const match of text.matchAll(/include\s+\/etc\/nginx\/keflab\/snippets\/([^\s;]+);/g)) {
+    if (!existsSync(join(ROOT, SNIPPET_DIR, match[1]))) {
+      problems.push(`${file}: include несуществующего сниппета ${match[1]}`)
+    }
+  }
+
+  if (/\breturn\b[^;]*\$uri\b/.test(text))
+    problems.push(`${file}: $uri в return запрещён (CRLF в Location)`)
+  if (/\badd_header\b[^;]*\$uri\b/.test(text)) problems.push(`${file}: $uri в add_header запрещён`)
+  if (/X-Cache-Status/.test(text)) problems.push(`${file}: X-Cache-Status не должен уходить наружу`)
+  if (/^\s*include\s+\S*brotli\.conf/m.test(text)) {
+    problems.push(`${file}: brotli.conf подключён, а модуль по умолчанию не установлен`)
+  }
+
+  const servers = httpsServers(text)
+  if (servers.length === 0) problems.push(`${file}: нет HTTPS-сервера`)
+  const allLocations = servers.flatMap((server) => blocks(server.body, 'location'))
+  const embedCount = allLocations.filter((loc) => loc.header === EMBED_LOCATION).length
+  if (embedCount !== 1)
+    problems.push(`${file}: нужен ровно один location ${EMBED_LOCATION}, найдено ${embedCount}`)
+
+  for (const server of servers) {
+    for (const loc of blocks(server.body, 'location')) {
+      const where = `${file}: location ${loc.header}`
+      const hasSecurity = loc.body.includes(SECURITY)
+      const hasEmbed = loc.body.includes(EMBED)
+      if (hasSecurity && hasEmbed) {
+        problems.push(`${where}: и ${SECURITY}, и ${EMBED} — два CSP-заголовка`)
+      }
+      if (hasEmbed && loc.header !== EMBED_LOCATION) {
+        problems.push(`${where}: ${EMBED} подключается только в location ${EMBED_LOCATION}`)
+      }
+      if (!hasSecurity && !hasEmbed) {
+        problems.push(`${where}: без заголовков безопасности (${SECURITY})`)
+      }
+      if (isStaging && !loc.body.includes('staging-noindex.conf')) {
+        problems.push(`${where}: без noindex (staging)`)
+      }
+      if (/\badd_header\b/.test(loc.body) && !hasSecurity && !hasEmbed) {
+        problems.push(`${where}: задаёт add_header и теряет заголовки безопасности`)
+      }
+      if (loc.header === EMBED_LOCATION) {
+        problems.push(...embedLocationProblems(where, loc.body, isStaging))
+      }
+      if (loc.header === EMBED_REDIRECT) {
+        if (!/return\s+301\s+https:\/\/[^\s;]+\$keflab_slash_target;/.test(loc.body)) {
+          problems.push(`${where}: редирект без слеша должен вести на $keflab_slash_target`)
+        }
+      }
+      if (loc.header === '^~ /go/') {
+        if (!/access_log\s+\S+\s+keflab_go;/.test(loc.body))
+          problems.push(`${where}: /go без лога keflab_go`)
+        if (!/error_log\s+\S+\s+crit;/.test(loc.body))
+          problems.push(`${where}: /go без error_log ... crit`)
+        if (!/limit_req\s+zone=keflab_go/.test(loc.body))
+          problems.push(`${where}: /go без limit_req`)
+        const noindex =
+          loc.body.includes('X-Robots-Tag "noindex"') || loc.body.includes('staging-noindex.conf')
+        if (!noindex) problems.push(`${where}: /go без X-Robots-Tag: noindex`)
+      }
+      if (loc.header === '= /api/error') {
+        if (!/limit_req\s+zone=keflab_error\s+burst=10\s+nodelay;/.test(loc.body)) {
+          problems.push(`${where}: без limit_req keflab_error burst=10 nodelay`)
+        }
+        if (!/limit_except\s+POST/.test(loc.body)) problems.push(`${where}: без limit_except POST`)
+      }
+      if (loc.header === '= /') {
+        for (const needle of [
+          'proxy_cache_bypass $args;',
+          'proxy_no_cache $args;',
+          'proxy_cache_use_stale error timeout updating http_500 http_502 http_503 http_504;',
+          'proxy_pass http://keflab',
+        ]) {
+          if (!loc.body.includes(needle)) problems.push(`${where}: главная без «${needle}»`)
+        }
+      }
+      if (loc.header === '^~ /_nuxt/' && !loc.body.includes('immutable')) {
+        problems.push(`${where}: без immutable`)
+      }
+    }
+  }
+
+  // Кэш: каждая зона proxy_cache должна быть объявлена в keflab-http.conf.
+  for (const match of text.matchAll(/proxy_cache\s+(\S+);/g)) {
+    if (!new RegExp(`keys_zone=${match[1]}:`).test(httpStripped)) {
+      problems.push(`${file}: proxy_cache ${match[1]} без keys_zone в keflab-http.conf`)
+    }
+  }
+
+  const hasWwwRedirect = isStaging
+    ? true
+    : servers.some((s) => /server_name\s+www\.keflab\.ru/.test(s.body) && s.body.includes(SECURITY))
+  if (!hasWwwRedirect) problems.push(`${file}: www-сервер без заголовков безопасности (HSTS)`)
+
+  if (isStaging) {
+    for (const needle of [
+      'auth_basic "keflab staging";',
+      'auth_basic_user_file /etc/nginx/keflab-staging.htpasswd;',
+      'Disallow: /',
+    ]) {
+      if (!text.includes(needle)) problems.push(`${file}: нет «${needle}»`)
+    }
+  }
+  return problems
+}
+
+// Исходники nginx в deploy/nginx (для проверки «frame-ancestors * только в одном месте»).
+function confFiles(dir) {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const path = join(dir, entry.name)
+    if (entry.isDirectory()) return confFiles(path)
+    return entry.name.endsWith('.conf') ? [path] : []
+  })
+}
+
+const nginxSources = {}
+for (const path of confFiles(join(ROOT, 'deploy/nginx'))) {
+  nginxSources[relative(ROOT, path)] = readFileSync(path, 'utf8')
+}
+
 const httpText = stripComments(read('deploy/nginx/conf.d/keflab-http.conf'))
 
 // Формат логов: /go без $remote_addr; основной лог — только маскированный IP.
@@ -192,23 +505,17 @@ if (!/map\s+\$request_uri\s+\$keflab_slash_target/.test(httpText)) {
 if (!/limit_req_zone\s+\$binary_remote_addr\s+zone=keflab_error:10m\s+rate=1r\/s;/.test(httpText)) {
   fail('keflab-http.conf: нет зоны keflab_error 1r/s')
 }
+for (const problem of httpEmbedProblems(httpText)) fail(`keflab-http.conf: ${problem}`)
 
-const security = stripComments(read(`deploy/nginx/${SECURITY}`))
-for (const needle of [
-  "default-src 'self'",
-  'https://mc.yandex.ru',
-  'frame-src https://mc.yandex.ru',
-  "frame-ancestors 'none'",
-  "base-uri 'self'",
-  "form-action 'self'",
-  '$keflab_script_hashes',
-  'Strict-Transport-Security',
-  'X-Content-Type-Options "nosniff"',
-  'Referrer-Policy "strict-origin-when-cross-origin"',
-  'Permissions-Policy "camera=(), microphone=(), geolocation=()"',
-]) {
-  if (!security.includes(needle)) fail(`security-headers.conf: нет ${needle}`)
+const securityFile = `deploy/nginx/${SECURITY}`
+const embedFile = `deploy/nginx/${EMBED}`
+for (const problem of securitySnippetProblems(read(securityFile)))
+  fail(`${securityFile}: ${problem}`)
+for (const problem of embedSnippetProblems(read(embedFile))) fail(`${embedFile}: ${problem}`)
+for (const leak of frameAncestorsStarLeaks(nginxSources)) {
+  fail(`${leak}: frame-ancestors * разрешён только в ${embedFile}`)
 }
+if (!existsSync(join(ROOT, embedFile))) fail(`нет файла ${embedFile}`)
 
 const proxy = stripComments(read('deploy/nginx/snippets/proxy-node.conf'))
 if (!proxy.includes('X-Real-IP $remote_addr')) fail('proxy-node.conf: нет X-Real-IP $remote_addr')
@@ -221,86 +528,10 @@ if (!/listen 443 ssl default_server;[\s\S]*?return 444;/.test(reject)) {
   fail('default-reject.conf: на 443 нет return 444')
 }
 
+const serverTexts = {}
 for (const file of SERVER_FILES) {
-  const text = stripComments(read(file))
-  const isStaging = file.includes('staging')
-  const cspInclude = isStaging
-    ? '/etc/nginx/keflab/csp/staging.conf'
-    : '/etc/nginx/keflab/csp/production.conf'
-  if (!text.includes(`include ${cspInclude};`)) fail(`${file}: нет include ${cspInclude}`)
-
-  // Ни один include nginx не указывает в /srv: туда пишет deploy.
-  for (const line of text.split('\n')) {
-    if (/^\s*include\s+\/srv\//.test(line))
-      fail(`${file}: include из /srv запрещён: ${line.trim()}`)
-  }
-
-  if (/\breturn\b[^;]*\$uri\b/.test(text)) fail(`${file}: $uri в return запрещён (CRLF в Location)`)
-  if (/\badd_header\b[^;]*\$uri\b/.test(text)) fail(`${file}: $uri в add_header запрещён`)
-  if (/X-Cache-Status/.test(text)) fail(`${file}: X-Cache-Status не должен уходить наружу`)
-  if (/\bbrotli\.conf\b/.test(text.replace(/^.*brotli\.conf.*$/gm, (line) => line))) {
-    if (/^\s*include\s+\S*brotli\.conf/m.test(text)) {
-      fail(`${file}: brotli.conf подключён, а модуль по умолчанию не установлен`)
-    }
-  }
-
-  for (const server of httpsServers(text)) {
-    for (const loc of blocks(server.body, 'location')) {
-      if (!loc.body.includes(SECURITY)) {
-        fail(`${file}: location ${loc.header} без заголовков безопасности (${SECURITY})`)
-      }
-      if (isStaging && !loc.body.includes('staging-noindex.conf')) {
-        fail(`${file}: location ${loc.header} без noindex (staging)`)
-      }
-      if (/\badd_header\b/.test(loc.body) && !loc.body.includes(SECURITY)) {
-        fail(`${file}: location ${loc.header} задаёт add_header и теряет заголовки безопасности`)
-      }
-      if (loc.header === '^~ /go/') {
-        if (!/access_log\s+\S+\s+keflab_go;/.test(loc.body)) fail(`${file}: /go без лога keflab_go`)
-        if (!/error_log\s+\S+\s+crit;/.test(loc.body)) fail(`${file}: /go без error_log ... crit`)
-        if (!/limit_req\s+zone=keflab_go/.test(loc.body)) fail(`${file}: /go без limit_req`)
-        const noindex =
-          loc.body.includes('X-Robots-Tag "noindex"') || loc.body.includes('staging-noindex.conf')
-        if (!noindex) fail(`${file}: /go без X-Robots-Tag: noindex`)
-      }
-      if (loc.header === '= /api/error') {
-        if (!/limit_req\s+zone=keflab_error\s+burst=10\s+nodelay;/.test(loc.body)) {
-          fail(`${file}: /api/error без limit_req keflab_error burst=10 nodelay`)
-        }
-        if (!/limit_except\s+POST/.test(loc.body)) fail(`${file}: /api/error без limit_except POST`)
-      }
-      if (loc.header === '= /') {
-        for (const needle of [
-          'proxy_cache_bypass $args;',
-          'proxy_no_cache $args;',
-          'proxy_cache_use_stale error timeout updating http_500 http_502 http_503 http_504;',
-          'proxy_pass http://keflab',
-        ]) {
-          if (!loc.body.includes(needle)) fail(`${file}: главная без «${needle}»`)
-        }
-      }
-      if (loc.header === '^~ /_nuxt/' && !loc.body.includes('immutable')) {
-        fail(`${file}: /_nuxt/ без immutable`)
-      }
-    }
-  }
-
-  const hasWwwRedirect = isStaging
-    ? true
-    : httpsServers(text).some(
-        (s) => /server_name\s+www\.keflab\.ru/.test(s.body) && s.body.includes(SECURITY),
-      )
-  if (!hasWwwRedirect) fail(`${file}: www-сервер без заголовков безопасности (HSTS)`)
-
-  if (isStaging) {
-    for (const needle of [
-      'auth_basic "keflab staging";',
-      'auth_basic_user_file /etc/nginx/keflab-staging.htpasswd;',
-      'Disallow: /',
-    ]) {
-      if (!text.includes(needle)) fail(`${file}: нет «${needle}»`)
-    }
-  }
+  serverTexts[file] = read(file)
+  for (const problem of serverProblems(file, serverTexts[file], httpText)) fail(problem)
 }
 
 // --- systemd ---
@@ -333,6 +564,7 @@ for (const unit of units) {
 // --- Файлы, без которых не работает выпуск ---
 for (const file of [
   'deploy/nginx/snippets/csp-script-hashes.example.conf',
+  'deploy/nginx/snippets/security-headers-embed.conf',
   'deploy/sudoers/keflab-deploy',
   'deploy/sbin/keflab-install-csp',
   'deploy/scripts/csp-hashes.mjs',
@@ -341,6 +573,110 @@ for (const file of [
   if (!existsSync(join(ROOT, file))) fail(`нет файла ${file}`)
 }
 
+// --- Самопроверка: намеренные ошибки на копиях текста. Каждая обязана быть обнаружена. ---
+function selfTest() {
+  let detected = 0
+  const expectDetected = (label, problems) => {
+    if (problems.length === 0) fail(`самопроверка: мутация «${label}» не обнаружена`)
+    else detected++
+  }
+  const mutate = (label, text, from, to) => {
+    if (!text.includes(from)) {
+      fail(`самопроверка: в «${label}» не найден фрагмент для мутации`)
+      return null
+    }
+    return text.replace(from, () => to)
+  }
+
+  // 1. frame-ancestors * в общем сниппете.
+  // Фрагмент — из самой строки CSP (в комментарии такой же текст тоже есть).
+  const generalBad = mutate(
+    'frame-ancestors * в общем сниппете',
+    read(securityFile),
+    "form-action 'self'; frame-ancestors 'none'\" always;",
+    "form-action 'self'; frame-ancestors *\" always;",
+  )
+  if (generalBad !== null) {
+    expectDetected('общий сниппет: набор', securitySnippetProblems(generalBad))
+    expectDetected(
+      'общий сниппет: утечка frame-ancestors *',
+      frameAncestorsStarLeaks({ ...nginxSources, [securityFile]: generalBad }),
+    )
+  }
+
+  // 2. Метрика попала в CSP виджета.
+  const embedBad = mutate(
+    'mc.yandex.ru в CSP /embed/',
+    read(embedFile),
+    "script-src 'self' $keflab_script_hashes",
+    "script-src 'self' https://mc.yandex.ru $keflab_script_hashes",
+  )
+  if (embedBad !== null) expectDetected('Метрика в CSP /embed/', embedSnippetProblems(embedBad))
+
+  // 3. Набор /embed/ подключён в обычном location (/api/) — два типа заголовков не по месту.
+  const prodFile = 'deploy/nginx/keflab.ru.conf'
+  const apiBad = mutate(
+    'embed-набор в /api/',
+    serverTexts[prodFile],
+    'location ^~ /api/ {\n        include /etc/nginx/keflab/snippets/security-headers.conf;',
+    'location ^~ /api/ {\n        include /etc/nginx/keflab/snippets/security-headers-embed.conf;',
+  )
+  if (apiBad !== null)
+    expectDetected('embed-набор в /api/', serverProblems(prodFile, apiBad, httpText))
+
+  // 4. Location виджета переименован: /embed/ остаётся без своего location.
+  const renamedBad = mutate(
+    'location /embed/ переименован',
+    serverTexts[prodFile],
+    'location ^~ /embed/ {',
+    'location ^~ /embedx/ {',
+  )
+  if (renamedBad !== null)
+    expectDetected('нет location /embed/', serverProblems(prodFile, renamedBad, httpText))
+
+  // 5. На staging у /embed/ снят noindex.
+  const stagingFile = 'deploy/nginx/staging.keflab.ru.conf'
+  const noindexBad = mutate(
+    'staging /embed/ без noindex',
+    serverTexts[stagingFile],
+    'security-headers-embed.conf;\n        include /etc/nginx/keflab/snippets/staging-noindex.conf;',
+    'security-headers-embed.conf;',
+  )
+  if (noindexBad !== null)
+    expectDetected('staging /embed/ без noindex', serverProblems(stagingFile, noindexBad, httpText))
+
+  // 6. Кэш /embed/ открыт для любого query (default 0).
+  const mapBad = mutate('карта кэша: default 0', httpText, 'default        1;', 'default        0;')
+  if (mapBad !== null) expectDetected('карта кэша /embed/', httpEmbedProblems(mapBad))
+
+  // 7. Нет bypass кэша у /embed/ с произвольным query.
+  const bypassBad = mutate(
+    '/embed/ без proxy_cache_bypass',
+    serverTexts[prodFile],
+    'proxy_cache_bypass $keflab_embed_nocache;',
+    '',
+  )
+  if (bypassBad !== null)
+    expectDetected('нет proxy_cache_bypass /embed/', serverProblems(prodFile, bypassBad, httpText))
+
+  // 8. Node-заголовок X-Frame-Options не скрыт: виджет перестал бы встраиваться.
+  const hideBad = mutate(
+    '/embed/ без proxy_hide_header X-Frame-Options',
+    serverTexts[prodFile],
+    'proxy_hide_header X-Frame-Options;',
+    '',
+  )
+  if (hideBad !== null)
+    expectDetected(
+      'нет proxy_hide_header X-Frame-Options',
+      serverProblems(prodFile, hideBad, httpText),
+    )
+
+  return detected
+}
+
+const selfTestCount = selfTest()
+
 for (const note of notes) console.log(`заметка: ${note}`)
 if (failures.length > 0) {
   console.error(`\nПроверка деплоя не пройдена (${failures.length}):`)
@@ -348,5 +684,5 @@ if (failures.length > 0) {
   process.exit(1)
 }
 console.log(
-  `Проверка деплоя: ок (${shFiles.length + sbinFiles.length} shell-скриптов, workflow, nginx, systemd, sudoers)`,
+  `Проверка деплоя: ок (${shFiles.length + sbinFiles.length} shell-скриптов, workflow, nginx, systemd, sudoers, самопроверка: ${selfTestCount} мутаций обнаружено)`,
 )

@@ -133,6 +133,28 @@ const SMALL_CALCULATOR_PAGES: readonly SitePage[] = [
   })),
 ]
 
+/**
+ * Виджет (шаг 12): страница с описанием и генератором кода и сама
+ * встраиваемая страница. /embed/ — noindex и не в sitemap; не предсобирается,
+ * потому что тема и размеры приходят в query (?theme=light).
+ */
+const WIDGET_PAGES: readonly SitePage[] = [
+  {
+    path: '/vidzhet/',
+    source: 'app/pages/vidzhet.vue',
+    kind: 'service',
+    indexable: true,
+    prerender: true,
+  },
+  {
+    path: '/embed/sistema/',
+    source: 'app/pages/embed/sistema.vue',
+    kind: 'calculator',
+    indexable: false,
+    prerender: false,
+  },
+]
+
 export const SITE_PAGES: readonly SitePage[] = [
   ...STATIC_PAGES,
   ...SYSTEM_PAGES.map(({ k, n }): SitePage => ({
@@ -143,6 +165,7 @@ export const SITE_PAGES: readonly SitePage[] = [
     prerender: true,
   })),
   ...SMALL_CALCULATOR_PAGES,
+  ...WIDGET_PAGES,
   ...BOOKMAKER_PAGES,
 ]
 

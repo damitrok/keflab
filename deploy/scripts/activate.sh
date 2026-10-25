@@ -4,7 +4,7 @@
 #
 # Использование: KEFLAB_ENV=production|staging activate.sh <sha>
 #
-# Порядок: проверка файлов -> пробный запуск на TMP_PORT (здоровье и CSP главной)
+# Порядок: проверка файлов -> пробный запуск на TMP_PORT (здоровье, CSP главной и виджета /embed/)
 # -> переключение current и перезапуск (с откатом при провале) -> публичная проверка
 # через Nginx (только production) -> окончательный CSP -> журнал релизов и очистка.
 set -Eeuo pipefail
@@ -39,16 +39,26 @@ trap 'rm -rf "$tmpdir"' EXIT
 ) >"$trial_log" 2>&1 &
 trial_pid=$!
 
+# CSP страницы $1 (путь на пробном порту) тем же способом, что и главная: все inline-скрипты
+# должны быть в файле хэшей релиза. $2 — имя временного файла.
+trial_csp_ok() {
+  local path=$1 name=$2
+  curl -fsS -m 5 -o "$tmpdir/$name.html" "http://127.0.0.1:$TMP_PORT$path" \
+    && "$NODE_BIN" "$REL/deploy/scripts/csp-hashes.mjs" verify "$tmpdir/$name.html" "$REL/csp-script-hashes.conf"
+}
+
 trial_ok=0
 if wait_health "http://127.0.0.1:$TMP_PORT/api/health" \
-  && curl -fsS -m 5 -o "$tmpdir/home.html" "http://127.0.0.1:$TMP_PORT/" \
-  && "$NODE_BIN" "$REL/deploy/scripts/csp-hashes.mjs" verify "$tmpdir/home.html" "$REL/csp-script-hashes.conf"; then
+  && trial_csp_ok "/" home \
+  && trial_csp_ok "/embed/sistema/" embed \
+  && trial_csp_ok "/embed/sistema/?theme=light" embed-light \
+  && trial_csp_ok "/embed/sistema/?theme=dark" embed-dark; then
   trial_ok=1
 fi
 kill "$trial_pid" 2>/dev/null || true
 wait "$trial_pid" 2>/dev/null || true
-((trial_ok == 1)) || die "пробный запуск $sha не прошёл, см. $trial_log (current не тронут)"
-log "пробный запуск ок: здоровье и CSP главной"
+((trial_ok == 1)) || die "пробный запуск $sha не прошёл (главная, виджет или CSP), см. $trial_log (current не тронут)"
+log "пробный запуск ок: здоровье, CSP главной и виджета"
 
 # --- 2. Переключение и проверка на боевом порту ---
 prev_before=$(current_id)

@@ -15,7 +15,8 @@ const bannerOf = (page: Page) =>
     .filter({ has: page.getByRole('button', { name: 'Принять' }) })
 
 test.describe('юридический слой: подвал', () => {
-  for (const { path } of SITE_PAGES) {
+  // У виджета (/embed/) подвала нет по ТЗ; его 18+ проверяет widget.spec.ts.
+  for (const { path } of SITE_PAGES.filter((p) => !p.path.startsWith('/embed/'))) {
     test(`${path}: 18+, ответственная игра, настройки cookie, справочный характер`, async ({
       page,
     }) => {

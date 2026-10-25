@@ -133,7 +133,7 @@ jobs:
           NUXT_PUBLIC_GOOGLE_VERIFICATION: ${{ vars.NUXT_PUBLIC_GOOGLE_VERIFICATION }}
         run: npm run build
 
-      - name: Хэши inline-скриптов для CSP (SSR главной и предсобранные страницы)
+      - name: Хэши inline-скриптов для CSP (SSR главной и виджета, предсобранные страницы)
         run: |
           set -Eeuo pipefail
           port=3999
@@ -158,6 +158,13 @@ jobs:
           curl -fsS "http://127.0.0.1:$port/" -o "$RUNNER_TEMP/ssr/home.html"
           curl -fsS "http://127.0.0.1:$port/?s=3000&m=c&k=2&e=1.8w,2.1w,1.65l" \
             -o "$RUNNER_TEMP/ssr/home-query.html"
+          # Виджет /embed/sistema/ — SSR, не предсобран. Его inline-скрипты тоже должны пройти CSP
+          # (тот же $keflab_script_hashes у Nginx). Вариант ?theme=dark — тоже в кэше Nginx.
+          curl -fsS "http://127.0.0.1:$port/embed/sistema/" -o "$RUNNER_TEMP/ssr/embed.html"
+          curl -fsS "http://127.0.0.1:$port/embed/sistema/?theme=light" \
+            -o "$RUNNER_TEMP/ssr/embed-light.html"
+          curl -fsS "http://127.0.0.1:$port/embed/sistema/?theme=dark" \
+            -o "$RUNNER_TEMP/ssr/embed-dark.html"
           node deploy/scripts/csp-hashes.mjs generate "$RUNNER_TEMP/csp-script-hashes.conf" \
             .output/public "$RUNNER_TEMP/ssr"
 

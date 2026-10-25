@@ -334,3 +334,20 @@
   `app/pages/kalkulyatory/*`, тексты — `app/lib/small-calc-content.ts`
   (TODO(text)). Хаб `/kalkulyatory/` — ссылка «Ещё» в шапке. Модули
   `app/lib/*` импортируют друг друга относительно (vitest не знает `~`).
+- 2026-10-25, шаг 12: ПРАВИЛО — офферы и любая реклама НИКОГДА не
+  рендерятся в виджете (`/embed/`), ни при каких флагах: компонент офферов
+  сам проверяет `useIsEmbed()` (`app/composables/useEmbed.ts`) и возвращает
+  пусто; e2e `widget.spec.ts` это проверяет при `OFFERS_ENABLED=true` (на
+  шаге 13 — усилить под реальный модуль офферов). В виджете нет Метрики и
+  баннера cookie (проверка `isEmbedPath`).
+- 2026-10-25, шаг 12: виджет — `app/layouts/embed.vue` (18+, подпись-ссылка
+  на keflab.ru, высота через postMessage `keflab:height`), тема — `?theme=`
+  → класс `theme-light`/`theme-dark` на `<html>` в SSR (поэтому `/embed/` не
+  предсобирается); генератор кода — `app/lib/widget-code.ts` (скрипт на
+  чужом сайте проверяет `event.origin`, `event.source`, тип и диапазон
+  200–5000). `frame-ancestors *` и `X-Robots-Tag: noindex` — только
+  `/embed/**` (routeRules в Node и `security-headers-embed.conf` в Nginx);
+  остальной сайт — `frame-ancestors 'none'` и `X-Frame-Options: DENY`,
+  `frame-src 'self'` для превью. `check:seo` пропускает страницы с
+  `indexable: false`, но проверяет у них noindex. E2E с собственными
+  серверами берут непересекающиеся диапазоны портов (по 20 на спек).

@@ -269,7 +269,8 @@ sudo chmod 0711 /srv/keflab /srv/keflab/releases /srv/keflab-staging /srv/keflab
 sudo chmod 0750 /srv/keflab/{incoming,bin,shared} /srv/keflab-staging/{incoming,bin,shared}
 sudo install -d -m 750 -o root -g keflab /etc/keflab
 sudo install -d -m 755 -o root -g root /var/www/letsencrypt
-sudo install -d -m 755 -o www-data -g www-data /var/cache/nginx/keflab /var/cache/nginx/keflab-staging
+sudo install -d -m 755 -o www-data -g www-data /var/cache/nginx/keflab /var/cache/nginx/keflab-staging \
+  /var/cache/nginx/keflab-embed /var/cache/nginx/keflab-staging-embed
 ```
 
 **5. Файлы окружения.** Шаблон — `.env.example`, раздел «Рантайм». Значения
@@ -379,6 +380,34 @@ deploy/scripts/check-cert.sh keflab.ru 14            # с другой маши�
 **11. Переключение DNS и старый VPS.** После проверки переключить DNS. Старый VPS
 остановить только после того, как новый отвечает не меньше часа.
 
+## Виджет /embed/ (шаг 12)
+
+Встраивать в чужие страницы можно только `/embed/`. Весь остальной сайт встраивать нельзя.
+
+- **Остальной сайт:** `frame-ancestors 'none'` в `snippets/security-headers.conf` и
+  `X-Frame-Options: DENY` (для старых браузеров). Оба заголовка есть на каждом location.
+- **Превью на `/vidzhet/`:** общий CSP разрешает `frame-src 'self'`, чтобы страница показывала
+  виджет своим iframe. `frame-ancestors` при этом остаётся `'none'`.
+- **Виджет:** свой набор `snippets/security-headers-embed.conf` с `frame-ancestors *`. Он
+  подключается только в `location ^~ /embed/` и не сочетается с общим набором (иначе два CSP).
+  В этом наборе нет `X-Frame-Options` (браузер применил бы его и запретил встраивание),
+  Метрики нет (`connect-src 'self'`, `frame-src 'none'`). Счётчик показов идёт через свой
+  `/api/stat` с того же домена.
+- **Заголовки Node скрыты.** `routeRules` в `nuxt.config.ts` шлёт свои CSP и `X-Robots-Tag`
+  для `/embed/**`. Nginx их прячет (`proxy_hide_header`) и ставит свои.
+- **X-Robots-Tag:** production — `noindex`; staging — `noindex, nofollow`.
+- **Адрес без слеша:** `/embed/sistema` отдаёт 301 на `/embed/sistema/`.
+- **Кэш:** зоны `keflab_embed` и `keflab_staging_embed`, 60 секунд, `use_stale` при падении Node.
+  Кэшируются только адреса без query или с `theme=light` / `theme=dark` (map
+  `$keflab_embed_nocache` в `conf.d/keflab-http.conf`). Остальные запросы идут мимо кэша,
+  поэтому произвольный query не раздувает зону. Лог — `keflab_main`.
+- **Staging:** basic auth остаётся. Виджет на staging снаружи не встраивают, а браузеры обычно не
+  показывают запрос пароля внутри чужой iframe, поэтому чужая страница его не загрузит.
+- **Проверка:** `npm run check:deploy` проверяет, что `frame-ancestors *` есть только в наборе
+  виджета и только в `^~ /embed/`, что в CSP виджета нет Метрики, и что `X-Robots-Tag` стоит.
+  Самопроверка скрипта подменяет текст конфигов в памяти и требует, чтобы каждая подмена
+  была замечена. Файлы при этом не меняются.
+
 ## Известные ограничения и TODO
 
 - **CSP `style-src 'unsafe-inline'`** — TODO: Nuxt выводит inline `<style>` на каждой
@@ -386,8 +415,12 @@ deploy/scripts/check-cert.sh keflab.ru 14            # с другой маши�
 - **`frame-src https://mc.yandex.ru`** для Метрики — проверить в браузере после включения
   счётчика; при появлении других хостов Метрики дополнить `script-src`/`connect-src`/`img-src`.
 - **script-src хэши** пересчитываются при каждом выпуске (`deploy/scripts/csp-hashes.mjs`).
-  Для `/embed/` (шаг 12) нужен отдельный набор заголовков, см. комментарий в
-  `deploy/nginx/keflab.ru.conf`.
+  Для `/embed/` тот же набор хэшей, см. раздел «Виджет /embed/» ниже.
+- **Хэши виджета на релизе.** Шаг сборки в `deploy.yml` снимает inline-скрипты с SSR главной,
+  `/embed/sistema/` и его вариантов `?theme=light` и `?theme=dark`, и передаёт все файлы в
+  `csp-hashes.mjs generate`. Пробный запуск в `activate.sh` проверяет CSP тех же страниц тем
+  же файлом хэшей. Сейчас набор у главной и виджета совпадает, но проверка нужна на случай
+  будущих отличий.
 - **nginx локально не проверен**: на машине разработки нет nginx. Конфиги проверяются
   логикой (`check-deploy.mjs`); синтаксис — `sudo nginx -t` на VPS. Директивы
   `error_log` в location и `listen … ssl http2` (до nginx 1.25.1) проверяются там же.

@@ -1,0 +1,15 @@
+// Светлая тема виджета (шаг 12). Подключается только в layout embed.
+// Контраст текста на белом и на #f4f2f0 не ниже 4,5:1, границ — не ниже 3:1.
+html.theme-light {
+  color-scheme: light;
+  --color-obsidian-canvas: #ffffff;
+  --color-carbon-lift: #f4f2f0;
+  --color-ash-stroke: #8a8380;
+  --color-graphite-mid: #d6d2cf;
+  --color-warm-granite: #5f5956;
+  --color-pale-stone: #4d4845;
+  --color-bone: #1a1817;
+  --color-chalk: #000000;
+  --color-signal-orange: #b13f08;
+  --color-metric-green: #2b6624;
+}

@@ -1,8 +1,8 @@
-# Gates: шаг 11 — мелкие калькуляторы
+# Gates: шаг 12 — виджет
 
-OWNS: app/**, shared/site-pages.ts, tests/**
+OWNS: app/**, shared/site-pages.ts, nuxt.config.ts, deploy/**, tests/**, README.md
 
-Scope: /kalkulyatory/ с маржой (2–3 исхода, честные коэффициенты), сложением коэффициентов (движок экспресса), догоном (предупреждение до результата, без советов), конвертером (десятичные, дробные, американские, вероятность); у каждого 300–600 слов, FAQ и ссылка на главный калькулятор; гейты шагов 1–10 — в истории git.
+Scope: /embed/sistema/ (без шапки и подвала, noindex, тот же калькулятор, 18+, тема, высота через postMessage) и /vidzhet/ (описание и генератор кода iframe с title и подписью-ссылкой); встраивание только для /embed/; в виджете нет рекламы, офферов и Метрики; план А — без партнёров; гейты шагов 1–11 — в истории git.
 
 - [x] G1: линтер проходит
   CHECK: npm run lint && echo GATE_LINT_OK
@@ -14,22 +14,27 @@ Scope: /kalkulyatory/ с маржой (2–3 исхода, честные коэ
   EXPECT: GATE_TYPECHECK_OK
   EVIDENCE: automatic-evidence=v1; definition-sha256=b55b7c8e520339601268674b6c62c81c5cacdb718784d554a415fcb725729f4c; exit=0; EXPECT=matched; output-sha256=f8a32e4b14dc4337629dcd24f60c8f4d15d8c76e0724450727ed7a03fa888cb4; output-bytes=62; shell=/bin/sh; cwd=/Users/dmitriymitrokhin/Desktop/my-project/betting; path=f54d7d698ebf/18 entries
 
-- [x] G3: юнит-тесты (маржа 1,90/1,90 → 5,26; конвертер 2,50 ↔ 3/2 ↔ +150 ↔ 40 %; догон; объём текстов) с порогом покрытия проходят
+- [x] G3: юнит-тесты (генератор кода: title, тема, ширина, проверка origin и source) проходят
   CHECK: npm test && echo GATE_UNIT_OK
   EXPECT: GATE_UNIT_OK
-  EVIDENCE: automatic-evidence=v1; definition-sha256=278326bc14f1fc435a51db07db8624860d16173663ef6c5591119aeb225f8f38; exit=0; EXPECT=matched; output-sha256=866c8d70d53e135a11c1daed57b7b358860effdcc20ccc0417d1374841e1f7ec; output-bytes=1335; shell=/bin/sh; cwd=/Users/dmitriymitrokhin/Desktop/my-project/betting; path=f54d7d698ebf/18 entries
+  EVIDENCE: automatic-evidence=v1; definition-sha256=278326bc14f1fc435a51db07db8624860d16173663ef6c5591119aeb225f8f38; exit=0; EXPECT=matched; output-sha256=d76e09a1e773917a1cd0986a4f518c799cf783e8eb2a4539aba4cb0975f7ff9f; output-bytes=1334; shell=/bin/sh; cwd=/Users/dmitriymitrokhin/Desktop/my-project/betting; path=f54d7d698ebf/18 entries
 
-- [x] G4: сборка, ссылки, SEO и стоп-слова проходят
-  CHECK: npm run build && npm run check:links && npm run check:seo && node scripts/gates/stopwords.mjs && echo GATE_BUILD_OK
+- [x] G4: сборка, ссылки и SEO проходят (/embed/ не в sitemap)
+  CHECK: npm run build && npm run check:links && npm run check:seo && echo GATE_BUILD_OK
   EXPECT: GATE_BUILD_OK
-  EVIDENCE: automatic-evidence=v1; definition-sha256=76fb976bf62485ee6146a270f016bff51d9198b22f78f6aaa2212fc1a57412ce; exit=0; EXPECT=matched; output-sha256=34e6fd1fd3948058ab38916c01233649496ef31b2c8671b57fe227616ff676a2; output-bytes=42709; shell=/bin/sh; cwd=/Users/dmitriymitrokhin/Desktop/my-project/betting; path=f54d7d698ebf/18 entries
+  EVIDENCE: automatic-evidence=v1; definition-sha256=e3b1b940a8fecb865ee3193e732fc3e6a0251311025014b3d8b3dff5cd832eb5; exit=0; EXPECT=matched; output-sha256=11b14477d188285f243077ec81c7fafb8616a1fcbd13c0bb28268bb3cf5fec2d; output-bytes=44583; shell=/bin/sh; cwd=/Users/dmitriymitrokhin/Desktop/my-project/betting; path=f54d7d698ebf/18 entries
 
-- [x] G5: e2e мелких калькуляторов (приёмка ТЗ, предупреждение догона до результата, подсказка из калькулятора системы ведёт на конвертер) проходят
-  CHECK: npx playwright test tests/e2e/small-calcs && echo GATE_E2E_SMALL_OK
-  EXPECT: GATE_E2E_SMALL_OK
-  EVIDENCE: automatic-evidence=v1; definition-sha256=b0b60dfd0a79b95e2534e5863816e1b109ebbe6300f69e0a31464ca8b33cf160; exit=0; EXPECT=matched; output-sha256=d7bddd45395565d69fd55a3e147e5618fc428b8aa0bdaf12ff260ad250b5417a; output-bytes=16161; shell=/bin/sh; cwd=/Users/dmitriymitrokhin/Desktop/my-project/betting; path=f54d7d698ebf/18 entries
+- [x] G5: виджет работает на тестовой странице с другого домена, высота подстраивается, чужой postMessage игнорируется, при OFFERS_ENABLED=true офферов в виджете нет, Метрика не грузится
+  CHECK: npx playwright test tests/e2e/widget && echo GATE_E2E_WIDGET_OK
+  EXPECT: GATE_E2E_WIDGET_OK
+  EVIDENCE: automatic-evidence=v1; definition-sha256=3a691f783a9c6d070c49d1fd5cd7338712d6420af24786ac7c5279032b0fca5e; exit=0; EXPECT=matched; output-sha256=eac2d3832ffacda21f5c3a59b1c5c2c81e82224384ba81b4a9bf879dfb7bca4e; output-bytes=4677; shell=/bin/sh; cwd=/Users/dmitriymitrokhin/Desktop/my-project/betting; path=f54d7d698ebf/18 entries
 
-- [x] G6: e2e всего сайта (регрессия) проходят
+- [x] G6: Nginx: frame-ancestors * только для /embed/, без Метрики в CSP виджета (проверка конфигов)
+  CHECK: npm run check:deploy && echo GATE_DEPLOY_OK
+  EXPECT: GATE_DEPLOY_OK
+  EVIDENCE: automatic-evidence=v1; definition-sha256=70a9ff43b3426b9c5fc68f22c26b9a23f8ccaf059136d2bce95b27506e6bd87b; exit=0; EXPECT=matched; output-sha256=8d322a831b783140d83c1c349e579d95baabdf71b4ca19498433ce3e072dd1e6; output-bytes=318; shell=/bin/sh; cwd=/Users/dmitriymitrokhin/Desktop/my-project/betting; path=f54d7d698ebf/18 entries
+
+- [x] G7: e2e всего сайта (регрессия) проходят
   CHECK: npm run test:e2e && echo GATE_E2E_ALL_OK
   EXPECT: GATE_E2E_ALL_OK
-  EVIDENCE: automatic-evidence=v1; definition-sha256=8a51bae5a0e8c04dc3acb33e51b9c6736f20d2db217beea5c76c9cfd1410b16b; exit=0; EXPECT=matched; output-sha256=a436ed91d3705254a5bdfdf8294c8b99ba020eb93454b6e16e0327a8f9881052; output-bytes=133145; shell=/bin/sh; cwd=/Users/dmitriymitrokhin/Desktop/my-project/betting; path=f54d7d698ebf/18 entries
+  EVIDENCE: automatic-evidence=v1; definition-sha256=8a51bae5a0e8c04dc3acb33e51b9c6736f20d2db217beea5c76c9cfd1410b16b; exit=0; EXPECT=matched; output-sha256=3f42c1375e0287070abf448e54a164ac3f6c8528f98b2926df24b643b8acc696; output-bytes=139234; shell=/bin/sh; cwd=/Users/dmitriymitrokhin/Desktop/my-project/betting; path=f54d7d698ebf/18 entries

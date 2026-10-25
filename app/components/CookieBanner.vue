@@ -1,5 +1,7 @@
 <script setup lang="ts">
 const { bannerOpen, choice, accept, reject } = useConsent()
+// В виджете (/embed/) баннера и аналитики нет.
+const isEmbed = useIsEmbed()
 
 const acceptButton = ref<HTMLButtonElement | null>(null)
 // Фокус не берём при первой загрузке; только когда баннер открыли из «Настройки cookie».
@@ -20,7 +22,7 @@ function onEscape() {
 
 <template>
   <section
-    v-if="bannerOpen"
+    v-if="bannerOpen && !isEmbed"
     class="cookie-banner"
     role="region"
     aria-label="Cookie"

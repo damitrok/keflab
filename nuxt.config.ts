@@ -45,6 +45,17 @@ export default defineNuxtConfig({
 
   typescript: { strict: true },
 
+  // Встраивать в чужие сайты можно только /embed/ (шаг 12). В бою те же
+  // заголовки ставит Nginx; здесь — для node-server без Nginx и тестов.
+  routeRules: {
+    '/embed/**': {
+      headers: {
+        'Content-Security-Policy': 'frame-ancestors *',
+        'X-Robots-Tag': 'noindex',
+      },
+    },
+  },
+
   nitro: {
     preset: 'node-server',
     // Предсжатые .br и .gz для статики: Nitro отдаёт их по Accept-Encoding.

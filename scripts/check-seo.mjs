@@ -312,7 +312,10 @@ async function collect() {
       pages[path] = await fetchFull(path)
     }
     // Индексируемые страницы реестра, которых нет в sitemap, тоже проверяем.
-    for (const p of registry) pages[p.path] ??= await fetchFull(p.path)
+    for (const p of registry.filter((r) => r.indexable)) pages[p.path] ??= await fetchFull(p.path)
+    // Неиндексируемые (например /embed/) — только что они закрыты noindex.
+    const hidden = {}
+    for (const p of registry.filter((r) => !r.indexable)) hidden[p.path] = await fetchFull(p.path)
     const param = await fetchFull(PARAM_PATH)
     const results = [
       {
@@ -321,6 +324,15 @@ async function collect() {
           sitemap.status === 200 && /xml/i.test(sitemap.type)
             ? []
             : [`статус ${sitemap.status}, тип ${sitemap.type}`],
+      },
+      {
+        name: 'неиндексируемые страницы реестра: 200 и noindex',
+        errors: Object.entries(hidden).flatMap(([path, r]) => {
+          const meta = /<meta[^>]+name="robots"[^>]+content="[^"]*noindex/i.test(r.html)
+          const header = /noindex/i.test(r.xRobots)
+          if (r.status !== 200) return [`${path}: статус ${r.status}`]
+          return meta || header ? [] : [`${path}: нет noindex`]
+        }),
       },
     ]
     return results.concat(
