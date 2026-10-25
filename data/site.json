@@ -1,0 +1,22 @@
+{
+  "siteName": "keflab.ru",
+  "siteUrl": "https://keflab.ru",
+  "media": {
+    "registered": false,
+    "name": "",
+    "founder": "",
+    "editorInChief": "",
+    "email": "",
+    "phone": "",
+    "registrationNumber": "",
+    "registrationAuthority": ""
+  },
+  "riskWarning": "",
+  "stopWords": [
+    "гарантированный выигрыш",
+    "без риска",
+    "лёгкие деньги",
+    "легкие деньги",
+    "заработок"
+  ]
+}

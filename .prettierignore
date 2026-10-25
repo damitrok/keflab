@@ -1,0 +1,12 @@
+.claude
+.nuxt
+.output
+node_modules
+package-lock.json
+playwright-report
+test-results
+.lighthouseci
+*.pdf
+AGENTS.md
+DESIGN.md
+GATES.md

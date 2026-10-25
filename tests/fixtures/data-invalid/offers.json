@@ -1,0 +1,15 @@
+[
+  {
+    "id": "test-offer",
+    "bookmakerSlug": "test-bk",
+    "advertiserName": "ООО Тест",
+    "advertiserInn": "123",
+    "trackingUrl": "https://example.ru/x",
+    "title": "Тест",
+    "conditionsShort": "Условия",
+    "validFrom": "2026-13-45",
+    "validTo": "2026-01-01",
+    "geo": ["RU"],
+    "placements": []
+  }
+]
