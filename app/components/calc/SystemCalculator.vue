@@ -1,31 +1,44 @@
 <script setup lang="ts">
 import { useShareQuery, useShareState } from '~/composables/useShareState'
 import { useSystemCalc } from '~/composables/useSystemCalc'
+import type { DecodeResult } from '~/lib/share-state'
 import CalcForm from './CalcForm.vue'
 import CalcResults from './CalcResults.vue'
 import ShareLink from './ShareLink.vue'
 
-// n и k задают начальную систему, например на /sistema-3-iz-5/ (шаг 9).
-const props = defineProps<{ n?: number; k?: number }>()
+const props = withDefaults(
+  defineProps<{
+    /** Начальная система, например на /sistema-3-iz-5/ (шаг 9). */
+    n?: number
+    k?: number
+    /** Синхронизировать расчёт с адресом и показывать «Скопировать ссылку». */
+    share?: boolean
+    /** Ключ localStorage; null — не сохранять (например, мини-калькулятор в статье). */
+    storageKey?: string | null
+  }>(),
+  { n: undefined, k: undefined, share: true, storageKey: undefined },
+)
 
 // Расчёт из ссылки применяется сразу, в том числе на сервере.
-const decoded = useShareQuery()
+const decoded: DecodeResult = props.share ? useShareQuery() : { kind: 'none' }
 const calc = useSystemCalc({
   n: props.n,
   k: props.k,
+  storageKey: props.storageKey,
   initial: decoded.kind === 'ok' ? decoded.snapshot : null,
 })
-const share = useShareState(calc, decoded)
+const share = props.share ? useShareState(calc, decoded) : null
 </script>
 
 <template>
   <div class="system-calculator">
-    <p v-if="share.notice.value" data-testid="share-notice" role="status" class="notice">
+    <p v-if="share?.notice.value" data-testid="share-notice" role="status" class="notice">
       {{ share.notice.value }}
     </p>
     <CalcForm :calc="calc" />
     <CalcResults :calc="calc">
       <ShareLink
+        v-if="share"
         :copy-state="share.copyState.value"
         :share-url="share.shareUrl.value"
         @copy="share.copy"

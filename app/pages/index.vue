@@ -44,6 +44,20 @@ useSeoMeta({
     <SystemCalculator />
 
     <CalcStaticExample />
+
+    <nav class="home__more" aria-label="Другие разделы">
+      <h2>Ещё по теме</h2>
+      <ul>
+        <li>
+          <NuxtLink to="/chto-takoe-sistema-v-stavkah/">Что такое система в ставках</NuxtLink> —
+          разбор для новичков: как делится ставка и сколько нужно зашедших событий.
+        </li>
+        <li>
+          <NuxtLink to="/kalkulyator-ekspressa/">Калькулятор экспресса</NuxtLink> — общий
+          коэффициент и что будет, если одно событие вернут.
+        </li>
+      </ul>
+    </nav>
   </div>
 </template>
 
@@ -51,5 +65,16 @@ useSeoMeta({
 .home {
   display: grid;
   gap: var(--spacing-40);
+}
+
+.home__more ul {
+  display: grid;
+  gap: var(--spacing-16);
+  margin: 0;
+  padding-left: var(--spacing-24);
+}
+
+.home__more a {
+  color: var(--color-bone);
 }
 </style>
