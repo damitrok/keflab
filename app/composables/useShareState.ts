@@ -1,4 +1,5 @@
 import { onMounted, ref, watch } from 'vue'
+import { GOALS, sendGoal } from '~/lib/goals'
 import { decodeShareQuery, encodeShareQuery, type DecodeResult } from '~/lib/share-state'
 import type { SystemCalc } from './useSystemCalc'
 
@@ -51,9 +52,11 @@ export function useShareState(calc: SystemCalc, decoded: DecodeResult) {
       if (!navigator.clipboard?.writeText) throw new Error('clipboard unavailable')
       await navigator.clipboard.writeText(shareUrl.value)
       copyState.value = 'copied'
+      sendGoal(GOALS.shareCopied)
     } catch {
       // Встроенные браузеры мессенджеров часто не дают доступа к буферу.
       copyState.value = 'manual'
+      sendGoal(GOALS.shareCopied, { manual: true })
     }
   }
 

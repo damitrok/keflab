@@ -1,0 +1,414 @@
+# keflab.ru
+
+Калькулятор системы и экспресса для игроков легальных букмекеров России. 18+.
+Сайт на Nuxt 4 (Vue 3, TypeScript), сборка через Nitro в `node-server`, отдача
+через Nginx на VPS в России. Сейчас: калькуляторы, статьи и служебные страницы.
+Офферы выключены.
+
+Что в репозитории для выпуска: `deploy/` (Nginx, systemd, скрипты, root-утилита CSP)
+и `.github/workflows/deploy.yml`. Правила для агента — в `AGENTS.md`, ТЗ — `ТЗ для ИИ-агента.pdf`.
+
+## Локальный запуск
+
+Нужен Node 24 (версия в `.nvmrc`).
+
+```sh
+npm ci                 # зависимости
+npm run dev            # разработка: http://localhost:3000
+npm run build          # сборка в .output (предсобирает страницы из shared/site-pages.ts)
+npm run preview        # запуск собранного сайта
+node .output/server/index.mjs   # то же, что делает systemd на сервере (PORT=3000)
+```
+
+Проверки (как в CI):
+
+```sh
+npm run lint           # ESLint и Prettier
+npm run typecheck      # vue-tsc
+npm test               # Vitest
+npm run test:e2e       # Playwright + axe (нужен `npx playwright install chromium`)
+npm run check:data     # схемы data/*.json
+npm run check:links    # внешние ссылки только из data/allowlist.json
+npm run check:seo      # sitemap, title, description, canonical, разметка
+npm run lhci           # Lighthouse CI (телефон)
+node deploy/scripts/check-deploy.mjs   # логика nginx, systemd, sudoers, workflow, bash -n
+npm run load-test      # нагрузка (скрипт добавлен в задаче нагрузочного теста)
+```
+
+`check-deploy.mjs` не заменяет `nginx -t`: синтаксис конфигов проверяет только сам nginx,
+а на машине разработчика его обычно нет.
+
+## Переменные окружения
+
+Шаблон — `.env.example`. Реальные значения в git не хранить.
+
+| Имя                               | Где нужна                                              | Пример                   | Обязательна                                                                         |
+| --------------------------------- | ------------------------------------------------------ | ------------------------ | ----------------------------------------------------------------------------------- |
+| `NUXT_PUBLIC_METRIKA_ID`          | сборка (GitHub Variables репозитория)                  | `12345678`               | нет: пусто — Метрика не подключается. Для staging код сборки всегда оставляет пусто |
+| `NUXT_PUBLIC_YANDEX_VERIFICATION` | сборка (GitHub Variables репозитория)                  | `abc123…`                | нет: метатег Вебмастера                                                             |
+| `NUXT_PUBLIC_GOOGLE_VERIFICATION` | сборка (GitHub Variables репозитория)                  | `xyz789…`                | нет: метатег Search Console                                                         |
+| `OFFERS_ENABLED`                  | сборка (проверка) и рантайм (`/etc/keflab/keflab.env`) | `false`                  | да, по умолчанию `false`. Только строка `true` включает офферы                      |
+| `NODE_ENV`                        | рантайм                                                | `production`             | да                                                                                  |
+| `PORT`                            | рантайм                                                | `3000` (staging: `3001`) | да                                                                                  |
+| `NITRO_PORT`                      | рантайм                                                | `3000` (staging: `3001`) | да, то же, что `PORT`                                                               |
+| `NITRO_HOST`                      | рантайм                                                | `127.0.0.1`              | да: Node слушает только локальный адрес                                             |
+
+`NUXT_PUBLIC_*` задаются только при сборке и в рантайм не кладутся. Значения попадают в
+предсобранные страницы и в inline-конфиг SSR, а хэш этого скрипта стоит в CSP. Если в
+`keflab.env` будет другое значение, пробный запуск релиза не пройдёт проверку CSP главной.
+Поменяли `NUXT_PUBLIC_*` — выпустите релиз заново.
+
+Секреты деплоя (GitHub Secrets окружения `production` или `staging`, не файлы):
+`DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_SSH_KEY`, `DEPLOY_KNOWN_HOSTS`.
+
+## Выпуск
+
+Выпуск делает `.github/workflows/deploy.yml`, в три задачи:
+
+1. **prepare** — выбирает окружение. Push в `main` → production, push в `staging` → staging,
+   только после успешного CI. Ручной запуск (Actions → Deploy → Run workflow) проверяет через
+   API, что для выбранного commit есть успешный CI, иначе выпуск отменяется. Production — только из `main`.
+2. **build** — `npm ci`, `npm run build`, снимает SSR главной, пишет хэши CSP, собирает архив
+   `<sha>.tar.gz` с проверочной суммой и публикует его как артефакт. **Без environment и без
+   секретов**: код зависимостей выполняется здесь, без ключа VPS.
+3. **deploy** — environment `production` или `staging` (здесь секреты SSH). npm не запускает.
+   Скачивает артефакт, проверяет сумму, загружает архив по SSH на VPS и запускает
+   `deploy/scripts/activate.sh`.
+
+Ключ хоста проверяется строго (`StrictHostKeyChecking=yes`): в `DEPLOY_KNOWN_HOSTS` —
+строки из `ssh-keyscan` после сверки отпечатка с тем, что показал хостер. Пустой
+`DEPLOY_KNOWN_HOSTS` останавливает выпуск.
+
+Рекомендуется в GitHub → Settings → Environments → `production` включить **Required reviewers**:
+выпуск в продакшн будет ждать подтверждения.
+
+На VPS `activate.sh`:
+
+- распаковывает релиз в `/srv/keflab/releases/<sha>/` (статика — читаемая всем, секретов там нет);
+- пробно запускает его на временном порту и проверяет `/api/health` и CSP главной;
+- переключает симлинк `current` атомарно и перезапускает сервис;
+- проверяет `/api/health` на боевом порту, а для production — через Nginx: `/api/health`,
+  страницу `/kalkulyator-ekspressa/` и файл из `/_nuxt/`;
+- при любом провале возвращает предыдущий релиз и завершается с ошибкой;
+- оставляет последние 5 релизов. Текущий релиз не удаляется никогда. Повторный выпуск того
+  же sha не трогает живой каталог.
+
+Хэши CSP ставит root-утилита `/usr/local/sbin/keflab-install-csp`, а не deploy напрямую (см. ниже).
+
+## Откат
+
+Цель — меньше 5 минут. Откат ставит предыдущий релиз (по журналу выпусков) и проверяет
+здоровье. Одна команда с локальной машины:
+
+```sh
+KEFLAB_SSH_TARGET=deploy@<адрес-VPS> deploy/scripts/remote-rollback.sh production
+```
+
+На месте, на VPS:
+
+```sh
+KEFLAB_ENV=production /srv/keflab/bin/rollback.sh          # предыдущий релиз
+KEFLAB_ENV=production /srv/keflab/bin/rollback.sh <sha>    # конкретный релиз из releases/
+```
+
+Повторный откат идёт дальше назад по истории. Релиз, которого нет в `releases/`
+(старше последних 5), откатить нельзя: выпустите нужный коммит заново.
+
+## Срочно убрать все офферы
+
+Офферы выключаются флагом `OFFERS_ENABLED` в `/etc/keflab/keflab.env`. Сборка и выпуск
+не нужны. Процесс читает флаг из своего окружения при старте, поэтому после правки нужен
+перезапуск (несколько секунд):
+
+```sh
+sudo sed -i 's/^OFFERS_ENABLED=.*/OFFERS_ENABLED=false/' /etc/keflab/keflab.env
+sudo systemctl restart keflab
+curl -s https://keflab.ru/api/geo     # в ответе offersEnabled: false
+```
+
+На время перезапуска `/api/*` и `/go/*` могут отвечать 502 на 1–3 секунды; главная
+отдаётся из кэша Nginx. Значение в `keflab.env` не трогает выпуск, так что выключение
+переживает следующий релиз. Включить обратно — то же с `true`, только после регистрации
+сайта как СМИ (см. AGENTS.md).
+
+## Staging
+
+- Адрес: `https://staging.keflab.ru`. Доступ по basic auth, `noindex, nofollow` на всех
+  ответах, `robots.txt` — `Disallow: /`.
+- Файлы: `/srv/keflab-staging/`, сервис `keflab-staging`, порт `3001`, env
+  `/etc/keflab/keflab-staging.env`.
+- Метрика на staging не подключается: код сборки для staging всегда оставляет
+  `NUXT_PUBLIC_METRIKA_ID` пустым.
+- Пароль basic auth — не в репозитории. Создать на VPS (пароль вводится с клавиатуры):
+
+  ```sh
+  sudo apt install -y apache2-utils
+  sudo htpasswd -c /etc/nginx/keflab-staging.htpasswd <логин>
+  sudo chown root:www-data /etc/nginx/keflab-staging.htpasswd && sudo chmod 640 /etc/nginx/keflab-staging.htpasswd
+  ```
+
+## Мониторинг
+
+Мониторинг должен работать вне VPS, иначе падение сервера он не увидит. Выбор сервиса —
+за человеком. Требования: проверки из России, без данных за рубежом, без регистрации от
+имени агента.
+
+**Доступность.** Проверять `https://keflab.ru/api/health` и `https://keflab.ru/` каждые
+1–5 минут, алерт при сбое 5 минут подряд.
+
+Варианты:
+
+- Внешний сервис мониторинга с точками проверки в России. Выбрать, проверить наличие
+  точек в РФ и где хранятся данные, настроить два URL из выше.
+- Свой скрипт `deploy/scripts/check-availability.sh` на отдельной машине в РФ (не на VPS):
+  cron каждую минуту, алерт после 5 сбоев подряд, то есть примерно за 5 минут
+  (`KEFLAB_ALERT_CMD` — команда оповещения, например отправка в мессенджер; токены только
+  через переменные окружения):
+
+  ```cron
+  * * * * * KEFLAB_ALERT_CMD='/opt/monitoring/notify.sh' /opt/monitoring/check-availability.sh
+  ```
+
+**Срок сертификата.** Алерт за 14 дней. Сертификат обновляет certbot через systemd-timer;
+проверить, что таймер активен: `systemctl list-timers | grep certbot` и
+`sudo certbot renew --dry-run`. Сам скрипт проверки — с другой машины по cron:
+
+```cron
+0 9 * * * /opt/monitoring/check-cert.sh keflab.ru 14 || /opt/monitoring/notify.sh "keflab: сертификат"
+```
+
+Exit 1 — срок меньше порога или сертификат не получен.
+
+**Ошибки приложения.** Приложение пишет строки `[keflab] …` в journald без пользовательских
+данных (IP, запросов, ввода). Посмотреть вручную:
+`journalctl -u keflab -p warning --since "1 hour ago"`. Заявки из браузера на `/api/error`
+проходят через лимит Nginx: 1 запрос в секунду на адрес, всплеск 10, только POST.
+
+Чтобы ошибки уходили в сервис, выбрать один из вариантов (решение человека):
+
+- Без SDK: агент сбора логов на VPS (например Vector или Promtail, проверить совместимость
+  и лицензию) читает journald юнита `keflab`, берёт строки с `[keflab]` и отправляет на
+  сервер мониторинга в России (можно свой Grafana Loki на отдельной машине в РФ).
+- Сервис ошибок со SDK (Sentry-совместимый): подключается в коде приложения — отдельное
+  решение, не в деплое. Перед выбором проверить, где хранятся данные, и что в событиях
+  нет персональных данных.
+
+**Логи Nginx и срок хранения.** Основной лог — с маскированным IP (`203.0.113.0`). Лог
+`/go` — без IP и без User-Agent; его error-лог пишет только `crit`, поэтому записи об
+отказах `limit_req` (содержат адрес клиента) туда не попадают. Срок хранения всех логов
+Nginx — **14 дней**. Ubuntu уже ротирует `/var/log/nginx/*.log` ежедневно и хранит 14
+копий (`/etc/logrotate.d/nginx`): файлы `keflab-*.log` попадают под эту маску. Проверить:
+`sudo logrotate -d /etc/logrotate.d/nginx`. Сообщения самого Nginx в `error.log` для
+`keflab.ru` (уровень `warn`) содержат адрес клиента — поэтому срок 14 дней обязателен.
+
+## Восстановление на новом VPS
+
+Цель — около 2 часов. Состояние сайта — в git и в `data/`, базы данных нет: новый VPS
+поднимается с нуля и выпускается тем же workflow.
+
+Нужно заранее: доступ к регистратору DNS, почта для уведомлений Let's Encrypt, публичный
+ключ деплоя, значения `DEPLOY_KNOWN_HOSTS` (после сверки отпечатка). Snapshot старого VPS
+не нужен.
+
+Все команды ниже выполняются в корне клона репозитория на VPS (`git clone` под
+пользователем с sudo): пути `deploy/...` относительные к нему.
+
+**0. DNS.** За сутки до переезда снизить TTL записей до 300 секунд (или меньше). Дальше —
+A-записи `keflab.ru`, `www.keflab.ru`, `staging.keflab.ru` на адрес нового VPS.
+
+**1. Пакеты.** Ubuntu 24.04 LTS.
+
+```sh
+sudo apt update
+sudo apt install -y nginx certbot curl rsync openssl ufw
+sudo ufw allow OpenSSH          # сначала SSH, чтобы не отрезать себя
+sudo ufw allow 'Nginx Full'
+sudo ufw enable
+```
+
+**2. Node 24 в `/opt/node-24`** (как в `.nvmrc` и `keflab.service`). Если nodejs.org из
+России медленный — скачать архив заранее и загрузить на VPS.
+
+```sh
+NODE_VERSION=24.x.y    # последняя 24.x: https://nodejs.org/dist/latest-v24.x/
+cd /tmp
+curl -fsSLO https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-x64.tar.xz
+curl -fsSLO https://nodejs.org/dist/v${NODE_VERSION}/SHASUMS256.txt
+grep " node-v${NODE_VERSION}-linux-x64.tar.xz\$" SHASUMS256.txt | sha256sum -c -
+sudo mkdir -p /opt/node-24
+sudo tar -xJf node-v${NODE_VERSION}-linux-x64.tar.xz -C /opt/node-24 --strip-components=1
+/opt/node-24/bin/node -v        # должно быть v24.x.y
+```
+
+**3. Пользователи и группы.** `keflab` — сервис, без входа. `deploy` — выпуск по SSH.
+Пользователь `deploy` читает `/etc/keflab/*.env` (`root:keflab`, `0640`) через группу
+`keflab`. `www-data` (Nginx) в эту группу **не** входит.
+
+```sh
+sudo useradd --system --home /srv/keflab --shell /usr/sbin/nologin keflab
+sudo useradd --create-home --shell /bin/bash deploy
+sudo usermod -aG keflab deploy
+sudo install -d -m 700 -o deploy -g deploy /home/deploy/.ssh
+echo '<публичный ключ деплоя>' | sudo tee /home/deploy/.ssh/authorized_keys >/dev/null
+sudo chown deploy:deploy /home/deploy/.ssh/authorized_keys && sudo chmod 600 /home/deploy/.ssh/authorized_keys
+# Проверка: www-data не в группе keflab
+id -nG www-data | grep -qw keflab && echo "ОШИБКА: www-data в группе keflab" || echo "ок"
+```
+
+Вход под `root` по SSH отключить: `PermitRootLogin no` в `/etc/ssh/sshd_config`, затем
+`sudo systemctl reload ssh`.
+
+**4. Каталоги и права.** Статика читается пользователем `www-data`, поэтому каталоги
+верхнего уровня доступны на обход (`0711`), содержимое релизов — на чтение всем (секретов
+там нет). Env-файлы и служебные каталоги — только для `deploy`/`keflab`.
+
+```sh
+sudo mkdir -p /srv/keflab/{releases,incoming,bin,shared} /srv/keflab-staging/{releases,incoming,bin,shared}
+sudo chown -R deploy:keflab /srv/keflab /srv/keflab-staging
+sudo chmod 0711 /srv/keflab /srv/keflab/releases /srv/keflab-staging /srv/keflab-staging/releases
+sudo chmod 0750 /srv/keflab/{incoming,bin,shared} /srv/keflab-staging/{incoming,bin,shared}
+sudo install -d -m 750 -o root -g keflab /etc/keflab
+sudo install -d -m 755 -o root -g root /var/www/letsencrypt
+sudo install -d -m 755 -o www-data -g www-data /var/cache/nginx/keflab /var/cache/nginx/keflab-staging
+```
+
+**5. Файлы окружения.** Шаблон — `.env.example`, раздел «Рантайм». Значения
+`OFFERS_ENABLED=false`, `NITRO_HOST=127.0.0.1`, `NITRO_PORT`/`PORT` — `3000` для production
+и `3001` для staging. Файл читается как данные (построчно `KEY=VALUE`), shell его не выполняет.
+
+```sh
+sudo nano /etc/keflab/keflab.env
+sudo nano /etc/keflab/keflab-staging.env
+sudo chown root:keflab /etc/keflab/*.env && sudo chmod 640 /etc/keflab/*.env
+```
+
+**6. Заглушки для Nginx: ACME и 443.** До сертификатов конфиги с HTTPS не пройдут
+`nginx -t`: сначала HTTP-заглушка и самоподписанный сертификат для неизвестного Host.
+
+```sh
+sudo rm -f /etc/nginx/sites-enabled/default
+sudo install -d -m 755 /etc/nginx/keflab
+sudo openssl req -x509 -newkey rsa:2048 -nodes -days 36500 -subj "/CN=invalid" \
+  -keyout /etc/nginx/keflab/default.key -out /etc/nginx/keflab/default.crt
+sudo chmod 600 /etc/nginx/keflab/default.key
+sudo tee /etc/nginx/sites-available/acme-bootstrap >/dev/null <<'CONF'
+server {
+    listen 80 default_server;
+    server_name keflab.ru www.keflab.ru staging.keflab.ru;
+    location ^~ /.well-known/acme-challenge/ { root /var/www/letsencrypt; }
+    location / { return 404; }
+}
+CONF
+sudo ln -sf /etc/nginx/sites-available/acme-bootstrap /etc/nginx/sites-enabled/acme-bootstrap
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+**7. Сертификаты.** Нужен DNS на новый адрес (шаг 0). Почта — адрес, куда Let's Encrypt
+пришлёт уведомления об истечении.
+
+```sh
+sudo certbot certonly --webroot -w /var/www/letsencrypt -n --agree-tos \
+  -m <почта-для-уведомлений> -d keflab.ru -d www.keflab.ru
+sudo certbot certonly --webroot -w /var/www/letsencrypt -n --agree-tos \
+  -m <почта-для-уведомлений> -d staging.keflab.ru
+sudo certbot renew --dry-run
+systemctl list-timers | grep certbot    # таймер certbot.timer должен быть активен
+```
+
+**8. Nginx: боевые конфиги.**
+
+```sh
+sudo install -d -m 755 /etc/nginx/keflab/snippets /etc/nginx/keflab/csp
+sudo cp deploy/nginx/snippets/*.conf /etc/nginx/keflab/snippets/
+sudo cp deploy/nginx/conf.d/keflab-http.conf /etc/nginx/conf.d/keflab-http.conf
+sudo cp deploy/nginx/keflab.ru.conf /etc/nginx/sites-available/keflab.ru
+sudo cp deploy/nginx/staging.keflab.ru.conf /etc/nginx/sites-available/staging.keflab.ru
+sudo cp deploy/nginx/default-reject.conf /etc/nginx/sites-available/default-reject
+sudo rm -f /etc/nginx/sites-enabled/acme-bootstrap
+sudo ln -sf /etc/nginx/sites-available/keflab.ru /etc/nginx/sites-enabled/keflab.ru
+sudo ln -sf /etc/nginx/sites-available/staging.keflab.ru /etc/nginx/sites-enabled/staging.keflab.ru
+sudo ln -sf /etc/nginx/sites-available/default-reject /etc/nginx/sites-enabled/default-reject
+# Стартовые файлы CSP (root). Первый выпуск их перезапишет через keflab-install-csp.
+sudo install -m 644 deploy/nginx/snippets/csp-script-hashes.example.conf /etc/nginx/keflab/csp/production.conf
+sudo install -m 644 deploy/nginx/snippets/csp-script-hashes.example.conf /etc/nginx/keflab/csp/staging.conf
+```
+
+Логи полного IP: в `/etc/nginx/nginx.conf` в блоке `http` закомментировать строку
+`access_log /var/log/nginx/access.log …;` (проверить `grep -n access_log /etc/nginx/nginx.conf`).
+Наши server-блоки пишут только `keflab_main` (маскированный IP).
+
+Пароль staging — см. раздел «Staging». Затем:
+
+```sh
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+Сжатие Brotli не включено по умолчанию (нужен модуль). Инструкция — в
+`/etc/nginx/keflab/snippets/brotli.conf`. gzip работает без него.
+
+**9. Root-утилита CSP, systemd и права выпуска.**
+
+```sh
+sudo install -m 755 -o root -g root deploy/sbin/keflab-install-csp /usr/local/sbin/keflab-install-csp
+sudo cp deploy/systemd/keflab.service deploy/systemd/keflab-staging.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemd-analyze verify /etc/systemd/system/keflab.service /etc/systemd/system/keflab-staging.service
+sudo systemctl enable keflab keflab-staging
+sudo cp deploy/sudoers/keflab-deploy /etc/sudoers.d/keflab-deploy
+sudo chmod 440 /etc/sudoers.d/keflab-deploy
+sudo visudo -cf /etc/sudoers.d/keflab-deploy
+```
+
+`keflab-install-csp` — единственный путь, которым deploy меняет конфиг Nginx. Утилита сама
+проверяет `nginx -t`, при ошибке возвращает прежний файл и только затем перезагружает Nginx.
+Вход в утилиту — только `production|staging` и `[final]`; из файла хэшей берутся лишь токены
+`'sha256-…'`. Сервисы не запускаем вручную: до первого выпуска в `current` ничего нет, юниты
+упадут и будут перезапускаться каждые 2 секунды. После первого выпуска они стартуют.
+
+**10. Первый выпуск.** В GitHub: Actions → Deploy → Run workflow → `staging`, затем
+`production`. Секреты окружений `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_SSH_KEY`,
+`DEPLOY_KNOWN_HOSTS` должны быть заданы до этого. Проверить:
+
+```sh
+curl -s https://keflab.ru/api/health                  # {"ok":true}
+curl -sI https://keflab.ru/ | head -20               # заголовки безопасности
+sudo -u www-data test -r /srv/keflab/current/.output/public/kalkulyator-ekspressa/index.html && echo "статика читается"
+deploy/scripts/check-cert.sh keflab.ru 14            # с другой машины
+```
+
+**11. Переключение DNS и старый VPS.** После проверки переключить DNS. Старый VPS
+остановить только после того, как новый отвечает не меньше часа.
+
+## Известные ограничения и TODO
+
+- **CSP `style-src 'unsafe-inline'`** — TODO: Nuxt выводит inline `<style>` на каждой
+  странице и `style=""` в SSR. Хэши стилей пока не делаем.
+- **`frame-src https://mc.yandex.ru`** для Метрики — проверить в браузере после включения
+  счётчика; при появлении других хостов Метрики дополнить `script-src`/`connect-src`/`img-src`.
+- **script-src хэши** пересчитываются при каждом выпуске (`deploy/scripts/csp-hashes.mjs`).
+  Для `/embed/` (шаг 12) нужен отдельный набор заголовков, см. комментарий в
+  `deploy/nginx/keflab.ru.conf`.
+- **nginx локально не проверен**: на машине разработки нет nginx. Конфиги проверяются
+  логикой (`check-deploy.mjs`); синтаксис — `sudo nginx -t` на VPS. Директивы
+  `error_log` в location и `listen … ssl http2` (до nginx 1.25.1) проверяются там же.
+- **systemd-песочница** (`IPAddressDeny`, `SystemCallFilter=@system-service`) проверена
+  синтаксически (`systemd-analyze verify`); поведение Node — при первом запуске на VPS.
+  Внешние адреса сервер не открывает: Метрика грузится браузером пользователя.
+- **Публичная проверка через Nginx** в activate.sh — только production.
+- **Кэш главной.** Главная кэшируется на 60 секунд. Старый HTML из кэша может ссылаться на
+  чанки прошлого релиза на минуту после выпуска — это допустимо.
+- **Пробный запуск** выполняется на порту `PORT+1000`: production 4000, staging 4001.
+
+## Структура деплоя
+
+```
+deploy/
+  nginx/        keflab.ru.conf, staging.keflab.ru.conf, conf.d/, snippets/, default-reject.conf
+  systemd/      keflab.service, keflab-staging.service
+  scripts/      activate.sh, rollback.sh, remote-rollback.sh, lib.sh,
+                csp-hashes.mjs, check-cert.sh, check-availability.sh, check-deploy.mjs
+  sbin/         keflab-install-csp (root, /usr/local/sbin)
+  sudoers/      keflab-deploy
+.github/workflows/deploy.yml
+.env.example
+```

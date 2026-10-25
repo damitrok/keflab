@@ -1,0 +1,14 @@
+# /etc/sudoers.d/keflab-deploy — что пользователю deploy разрешено без пароля.
+# Только перезапуск сервисов и установка CSP через root-утилиту. Установка:
+#   sudo cp deploy/sudoers/keflab-deploy /etc/sudoers.d/keflab-deploy
+#   sudo chmod 440 /etc/sudoers.d/keflab-deploy
+#   sudo visudo -cf /etc/sudoers.d/keflab-deploy
+# nginx -t и reload nginx deploy не выполняет напрямую: это делает keflab-install-csp.
+Cmnd_Alias KEFLAB_DEPLOY = \
+    /usr/bin/systemctl restart keflab, \
+    /usr/bin/systemctl restart keflab-staging, \
+    /usr/local/sbin/keflab-install-csp production, \
+    /usr/local/sbin/keflab-install-csp production final, \
+    /usr/local/sbin/keflab-install-csp staging, \
+    /usr/local/sbin/keflab-install-csp staging final
+deploy ALL=(root) NOPASSWD: KEFLAB_DEPLOY

@@ -40,7 +40,12 @@ onMounted(() => (ready.value = true))
     <p v-if="share?.notice.value" data-testid="share-notice" role="status" class="notice">
       {{ share.notice.value }}
     </p>
-    <CalcForm :calc="calc" />
+    <CalcForm
+      :calc="calc"
+      @input="calc.markUserInput"
+      @change="calc.markUserInput"
+      @click="calc.markUserInput"
+    />
     <CalcResults :calc="calc">
       <ShareLink
         v-if="share"

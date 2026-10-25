@@ -1,0 +1,61 @@
+# /etc/systemd/system/keflab.service — продакшн (keflab.ru), порт 3000.
+# Установка и проверка: README, раздел «Восстановление на новом VPS».
+#
+# Node — версия из .nvmrc (24). Путь к бинарнику ниже: при установке в другое место
+# поправить ExecStart и выполнить: sudo systemctl daemon-reload && sudo systemctl restart keflab
+# Переменные: /etc/keflab/keflab.env (шаблон — .env.example, раздел «Рантайм»).
+# Сервер сам внешние адреса не открывает: Метрика грузится браузером пользователя.
+
+[Unit]
+Description=keflab.ru (Nitro, production)
+After=network-online.target
+Wants=network-online.target
+# Не сдаваться после серии падений: перезапуск повторяется всегда.
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=keflab
+Group=keflab
+UMask=0027
+
+# Текущий релиз; симлинк переключают activate.sh и rollback.sh.
+WorkingDirectory=/srv/keflab/current
+EnvironmentFile=/etc/keflab/keflab.env
+ExecStart=/opt/node-24/bin/node .output/server/index.mjs
+
+# Упал процесс — systemd поднимет его через 2 секунды.
+Restart=always
+RestartSec=2
+
+# Изоляция процесса.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/srv/keflab/shared
+ProtectHome=yes
+ProtectProc=invisible
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+RestrictSUIDSGID=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+LockPersonality=yes
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+# Сеть: только loopback (к Nginx). Внешние адреса для процесса закрыты.
+IPAddressDeny=any
+IPAddressAllow=localhost
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=keflab
+
+[Install]
+WantedBy=multi-user.target

@@ -9,7 +9,12 @@ const calc = useExpressCalc()
 
 <template>
   <div class="express-calculator">
-    <ExpressForm :calc="calc" />
+    <ExpressForm
+      :calc="calc"
+      @input="calc.markUserInput"
+      @change="calc.markUserInput"
+      @click="calc.markUserInput"
+    />
     <div class="express-calculator__side">
       <ExpressResults :calc="calc" />
       <ExpressWhatIf :what-if="calc.whatIf.value" />

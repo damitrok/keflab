@@ -16,7 +16,9 @@
     "check:links": "node scripts/check-links.ts",
     "lhci": "lhci autorun",
     "check:seo": "node scripts/check-seo.mjs",
-    "prebuild": "node scripts/gen-lastmod.mjs"
+    "prebuild": "node scripts/gen-lastmod.mjs",
+    "load-test": "node scripts/ops/load-test.mjs",
+    "check:deploy": "node deploy/scripts/check-deploy.mjs"
   },
   "dependencies": {
     "@fontsource-variable/geist": "^5.3.0",

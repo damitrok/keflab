@@ -284,3 +284,18 @@
   на всех страницах. Субагенты гоняют e2e на своём `E2E_PORT`, полный
   `npm run test:e2e` — только главный агент и не параллельно с другими
   прогонами (общий порт 3100 и `reuseExistingServer` ломают оба прогона).
+- 2026-10-25, шаг 8: цели Метрики — `app/lib/goals.ts` (calc_used один раз
+  после действия пользователя, scenario_opened, compare_opened, share_copied;
+  share_copied с `{manual: true}`, если буфер недоступен). Ошибки клиента —
+  `POST /api/error` (только where/name/message, лишние поля отбрасываются,
+  чужие Origin молча игнорируются, 60/мин на процесс + limit_req в Nginx) →
+  journald `[keflab] …`; внешний сервис ошибок подключает человек.
+  `GET /api/health` — для мониторинга и проверки выпуска.
+- 2026-10-25, шаг 8: инфраструктура — `deploy/**` (Nginx, systemd, sudoers,
+  скрипты), выпуск — `.github/workflows/deploy.yml` (build без секретов →
+  deploy по SSH без npm, после зелёного CI), откат —
+  `deploy/scripts/remote-rollback.sh` (одна команда), подробности — README.
+  CSP: script-src с хэшами инлайн-скриптов Nuxt, файл CSP пишет только
+  root-утилита `keflab-install-csp`. `NUXT_PUBLIC_*` задаются ТОЛЬКО при
+  сборке (меняют хэш инлайн-конфига → CSP). `npm run check:deploy` проверяет
+  конфиги в CI. Главная при упавшем Node — из proxy_cache Nginx.

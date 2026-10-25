@@ -15,6 +15,7 @@ import {
   type StakeMode,
   type SystemResult,
 } from '~/lib/calc'
+import { createCalcUsedReporter } from '~/lib/goals'
 import { reportError } from '~/lib/report-error'
 import type { Snapshot } from '~/lib/snapshot'
 
@@ -213,6 +214,17 @@ export function useSystemCalc(options: SystemCalcOptions = {}) {
   /** Сколько событий со статусом «ждём». */
   const pendingCount = computed(() => events.value.filter((e) => e.status === 'pending').length)
 
+  // Цель calc_used: итог рассчитан (или построены сценарии) после действия пользователя.
+  const calcUsed = createCalcUsedReporter('system')
+  watch(
+    () => {
+      const r = result.value
+      return !!scenarioTable.value || !!(r && r.ok && r.settlement.settled)
+    },
+    (ready) => calcUsed.setReady(ready),
+    { immediate: true },
+  )
+
   function addEvent(): EventInput | null {
     if (!canAdd.value) return null
     const e = blankEvent()
@@ -295,6 +307,8 @@ export function useSystemCalc(options: SystemCalcOptions = {}) {
     setK,
     clearAll,
     restore,
+    /** Вызывать при вводе пользователя (для цели calc_used). */
+    markUserInput: calcUsed.touch,
     /** Текущий «снимок» ввода (после паузы для 12+ событий). */
     snapshot,
   }

@@ -1,0 +1,97 @@
+#!/usr/bin/env bash
+# /usr/local/sbin/keflab-install-csp — ставит хэши inline-скриптов для CSP (script-src).
+# Запускает ТОЛЬКО root (sudo из пользователя deploy, см. deploy/sudoers/keflab-deploy).
+#
+# Использование: keflab-install-csp production|staging [final]
+#   без final — объединение текущих хэшей и хэшей нового релиза (переход: старый HTML из кэша
+#               и новый HTML оба проходят CSP);
+#   final     — только хэши нового релиза.
+#
+# Вход: /srv/keflab[-staging]/shared/csp-stage.conf (пишет deploy). Из него берутся ТОЛЬКО
+# токены 'sha256-<43 символа>=' — всё остальное игнорируется. Выход: /etc/nginx/keflab/csp/<env>.conf,
+# владелец root. Файл nginx разбирает от root, поэтому входной файл не подключается nginx никогда.
+# Порядок: записать во временный файл -> nginx -t -> при ошибке вернуть прежний файл -> reload.
+set -Eeuo pipefail
+umask 022
+
+env_name=${1:-}
+mode=${2:-union}
+
+case $env_name in
+  production) app_root=/srv/keflab ;;
+  staging) app_root=/srv/keflab-staging ;;
+  *)
+    echo "usage: keflab-install-csp production|staging [final]" >&2
+    exit 2
+    ;;
+esac
+case $mode in
+  union | final) ;;
+  *)
+    echo "usage: keflab-install-csp production|staging [final]" >&2
+    exit 2
+    ;;
+esac
+
+stage="$app_root/shared/csp-stage.conf"
+dst_dir=/etc/nginx/keflab/csp
+dst="$dst_dir/$env_name.conf"
+token_re="'sha256-[A-Za-z0-9+/]{43}='"
+
+# Защита от подмены: ни каталог, ни файл не должны быть симлинками.
+if [[ -L $app_root/shared || -L $stage || ! -f $stage ]]; then
+  echo "нет обычного файла $stage (или это симлинк)" >&2
+  exit 1
+fi
+
+install -d -m 755 -o root -g root "$dst_dir"
+
+collect() {
+  if [[ -f $1 && ! -L $1 ]]; then
+    grep -oE "$token_re" "$1" || true
+  fi
+}
+
+tokens=$(
+  {
+    collect "$stage"
+    if [[ $mode == union ]]; then
+      collect "$dst"
+    fi
+  } | sort -u | tr '\n' ' ' | sed 's/ $//'
+)
+if [[ -z $tokens ]]; then
+  echo "в $stage нет ни одного хэша: файл не трогаю" >&2
+  exit 1
+fi
+
+tmp=$(mktemp "$dst_dir/.$env_name.new.XXXXXX")
+backup=""
+cleanup() {
+  rm -f "$tmp"
+  if [[ -n $backup ]]; then rm -f "$backup"; fi
+}
+trap cleanup EXIT
+
+printf 'set $keflab_script_hashes "%s";\n' "$tokens" >"$tmp"
+chmod 644 "$tmp"
+
+if [[ -f $dst ]]; then
+  backup=$(mktemp "$dst_dir/.$env_name.bak.XXXXXX")
+  cp -p "$dst" "$backup"
+fi
+
+mv -f "$tmp" "$dst"
+if ! /usr/sbin/nginx -t >/dev/null 2>&1; then
+  if [[ -n $backup ]]; then
+    mv -f "$backup" "$dst"
+    backup=""
+  else
+    rm -f "$dst"
+  fi
+  echo "nginx -t не прошёл: прежний файл CSP восстановлен, nginx не перезагружен" >&2
+  exit 1
+fi
+
+/usr/bin/systemctl reload nginx
+echo "CSP ($mode) для $env_name: $(grep -o "'sha256-" "$dst" | wc -l | tr -d ' ') хэш(ей)"

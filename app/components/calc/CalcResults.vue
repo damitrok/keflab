@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { SystemCalc } from '~/composables/useSystemCalc'
 import type { SystemResult } from '~/lib/calc'
+import { GOALS, sendGoal } from '~/lib/goals'
 import {
   CALC_ERROR_TEXTS,
   CALC_FAILED_TEXT,
@@ -47,6 +48,10 @@ const tabs = [
 ] as const
 type TabKey = (typeof tabs)[number]['key']
 const active = ref<TabKey>('combinations')
+watch(active, (key) => {
+  if (key === 'scenarios') sendGoal(GOALS.scenarioOpened)
+  else if (key === 'compare') sendGoal(GOALS.compareOpened)
+})
 const tabEls = ref<HTMLButtonElement[]>([])
 const tabId = (k: TabKey) => `${uid}-tab-${k}`
 const panelId = (k: TabKey) => `${uid}-panel-${k}`

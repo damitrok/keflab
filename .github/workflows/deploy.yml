@@ -1,0 +1,280 @@
+name: Deploy
+
+# Выпуск на VPS по SSH. Разделено на две задачи:
+#   build  — сборка БЕЗ environment и БЕЗ секретов; результат — артефакт с архивом релиза;
+#   deploy — environment (секреты SSH), без npm: только скачивает артефакт и работает по SSH.
+# Запускается после успешного CI на main (production) или staging (staging), либо вручную.
+# Подробности и откат: README.md.
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main, staging]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Окружение
+        type: choice
+        options: [staging, production]
+        default: staging
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    name: Определить окружение и проверить CI
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      run: ${{ steps.pick.outputs.run }}
+      environment: ${{ steps.pick.outputs.environment }}
+      app_root: ${{ steps.pick.outputs.app_root }}
+      sha: ${{ steps.pick.outputs.sha }}
+    steps:
+      - name: Выбрать окружение и commit
+        id: pick
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          EVENT: ${{ github.event_name }}
+          CI_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          CI_EVENT: ${{ github.event.workflow_run.event }}
+          CI_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          CI_SHA: ${{ github.event.workflow_run.head_sha }}
+          INPUT_ENV: ${{ inputs.environment }}
+          SELF_SHA: ${{ github.sha }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -Eeuo pipefail
+          run=false
+          env_name=""
+          sha=""
+          if [[ $EVENT == workflow_dispatch ]]; then
+            env_name=$INPUT_ENV
+            sha=$SELF_SHA
+            if [[ $env_name == production && $REF_NAME != main ]]; then
+              echo "::error::Выпуск в production — только из main"
+              exit 1
+            fi
+            # Выпускаем только то, что прошло CI: проверяем через API.
+            ok=$(gh api "repos/$REPO/actions/workflows/ci.yml/runs?head_sha=$sha&status=completed&per_page=20" \
+              --jq '[.workflow_runs[] | select(.conclusion == "success")] | length')
+            if [[ $ok -lt 1 ]]; then
+              echo "::error::Нет успешного CI для $sha — выпуск отменён"
+              exit 1
+            fi
+            run=true
+          elif [[ $EVENT == workflow_run ]]; then
+            # Выпускаем только успешный push в main или staging (не pull_request).
+            if [[ $CI_CONCLUSION == success && $CI_EVENT == push ]]; then
+              case $CI_BRANCH in
+                main) env_name=production; run=true ;;
+                staging) env_name=staging; run=true ;;
+              esac
+            fi
+            sha=$CI_SHA
+          fi
+          app_root=""
+          case $env_name in
+            production) app_root=/srv/keflab ;;
+            staging) app_root=/srv/keflab-staging ;;
+          esac
+          {
+            echo "run=$run"
+            echo "environment=$env_name"
+            echo "app_root=$app_root"
+            echo "sha=$sha"
+          } >>"$GITHUB_OUTPUT"
+          echo "окружение: ${env_name:-нет}, запуск: $run, commit: $sha"
+
+  build:
+    name: Сборка (без секретов)
+    needs: prepare
+    if: needs.prepare.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # Нет environment и нет secrets: код зависимостей выполняется здесь, без ключа VPS.
+    permissions:
+      contents: read
+    env:
+      SHA: ${{ needs.prepare.outputs.sha }}
+      KEFLAB_ENV: ${{ needs.prepare.outputs.environment }}
+    steps:
+      - name: Код коммита
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+          # Полная история нужна для lastmod в sitemap.xml (scripts/gen-lastmod.mjs).
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Node из .nvmrc
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Зависимости
+        run: npm ci
+
+      - name: Сборка
+        # NUXT_PUBLIC_* — переменные репозитория (не секреты). Метрика — только для production:
+        # на staging значение пустое. Значения попадают в предсобранные страницы, поэтому
+        # в рантайм их не задаём (см. README).
+        # OFFERS_ENABLED здесь не задаётся: сборка с офферами выключенными.
+        env:
+          NUXT_PUBLIC_METRIKA_ID: ${{ needs.prepare.outputs.environment == 'production' && vars.NUXT_PUBLIC_METRIKA_ID || '' }}
+          NUXT_PUBLIC_YANDEX_VERIFICATION: ${{ vars.NUXT_PUBLIC_YANDEX_VERIFICATION }}
+          NUXT_PUBLIC_GOOGLE_VERIFICATION: ${{ vars.NUXT_PUBLIC_GOOGLE_VERIFICATION }}
+        run: npm run build
+
+      - name: Хэши inline-скриптов для CSP (SSR главной и предсобранные страницы)
+        run: |
+          set -Eeuo pipefail
+          port=3999
+          PORT=$port NITRO_HOST=127.0.0.1 node .output/server/index.mjs >"$RUNNER_TEMP/ssr.log" 2>&1 &
+          pid=$!
+          trap 'kill "$pid" 2>/dev/null || true' EXIT
+          ready=0
+          for _ in $(seq 1 30); do
+            if curl -fsS "http://127.0.0.1:$port/" -o /dev/null 2>/dev/null; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          if [[ $ready != 1 ]]; then
+            cat "$RUNNER_TEMP/ssr.log"
+            echo "::error::SSR-сервер не поднялся"
+            exit 1
+          fi
+          mkdir -p "$RUNNER_TEMP/ssr"
+          # Главная без параметров и с параметрами расчёта (шаг 4): inline-скрипты одни и те же.
+          curl -fsS "http://127.0.0.1:$port/" -o "$RUNNER_TEMP/ssr/home.html"
+          curl -fsS "http://127.0.0.1:$port/?s=3000&m=c&k=2&e=1.8w,2.1w,1.65l" \
+            -o "$RUNNER_TEMP/ssr/home-query.html"
+          node deploy/scripts/csp-hashes.mjs generate "$RUNNER_TEMP/csp-script-hashes.conf" \
+            .output/public "$RUNNER_TEMP/ssr"
+
+      - name: Собрать архив релиза
+        run: |
+          set -Eeuo pipefail
+          staging="$RUNNER_TEMP/pack"
+          rm -rf "$staging"
+          mkdir -p "$staging/$SHA/shared" "$staging/$SHA/deploy"
+          cp -a .output package.json "$staging/$SHA/"
+          cp shared/lastmod.json "$staging/$SHA/shared/"
+          cp "$RUNNER_TEMP/csp-script-hashes.conf" "$staging/$SHA/"
+          cp -a deploy/scripts "$staging/$SHA/deploy/"
+          mkdir -p dist-release
+          tar -czf "dist-release/$SHA.tar.gz" -C "$staging" "$SHA"
+          (cd dist-release && sha256sum "$SHA.tar.gz" >"$SHA.tar.gz.sha256")
+          ls -la dist-release
+
+      - name: Артефакт релиза
+        uses: actions/upload-artifact@v7
+        with:
+          name: release
+          path: dist-release
+          retention-days: 3
+
+  deploy:
+    name: Выпуск на VPS (${{ needs.prepare.outputs.environment }})
+    needs: [prepare, build]
+    if: needs.prepare.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Секреты SSH доступны только в этой задаче. npm здесь не запускается.
+    environment: ${{ needs.prepare.outputs.environment }}
+    concurrency:
+      group: deploy-${{ needs.prepare.outputs.environment }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+    env:
+      SHA: ${{ needs.prepare.outputs.sha }}
+      KEFLAB_ENV: ${{ needs.prepare.outputs.environment }}
+      APP_ROOT: ${{ needs.prepare.outputs.app_root }}
+    steps:
+      - name: Скачать артефакт релиза
+        uses: actions/download-artifact@v8
+        with:
+          name: release
+          path: dist-release
+
+      - name: Подготовить SSH (ключ и известный хост)
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          set -Eeuo pipefail
+          if [[ -z $DEPLOY_HOST || -z $DEPLOY_USER || -z $DEPLOY_SSH_KEY ]]; then
+            echo "::error::Не заданы DEPLOY_HOST, DEPLOY_USER или DEPLOY_SSH_KEY в окружении $KEFLAB_ENV"
+            exit 1
+          fi
+          if [[ -z $DEPLOY_KNOWN_HOSTS ]]; then
+            echo "::error::DEPLOY_KNOWN_HOSTS пуст: проверка ключа хоста обязательна"
+            exit 1
+          fi
+          umask 077
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$DEPLOY_SSH_KEY" >"$HOME/.ssh/deploy_key"
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" >"$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/deploy_key" "$HOME/.ssh/known_hosts"
+          echo "::add-mask::$DEPLOY_HOST"
+          echo "DEPLOY_TARGET=$DEPLOY_USER@$DEPLOY_HOST" >>"$GITHUB_ENV"
+          echo "SSH_OPTS=-i $HOME/.ssh/deploy_key -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$HOME/.ssh/known_hosts -o ConnectTimeout=20" >>"$GITHUB_ENV"
+
+      - name: Загрузить архив на VPS
+        run: |
+          set -Eeuo pipefail
+          # shellcheck disable=SC2086
+          ssh $SSH_OPTS "$DEPLOY_TARGET" "mkdir -p '$APP_ROOT/incoming' '$APP_ROOT/releases'"
+          # shellcheck disable=SC2086
+          rsync -az -e "ssh $SSH_OPTS" \
+            "dist-release/$SHA.tar.gz" "dist-release/$SHA.tar.gz.sha256" \
+            "$DEPLOY_TARGET:$APP_ROOT/incoming/"
+
+      - name: Распаковать и выпустить на VPS
+        run: |
+          set -Eeuo pipefail
+          # Команды выполняются на VPS из stdin. Секретов в аргументах нет.
+          # shellcheck disable=SC2086
+          ssh $SSH_OPTS "$DEPLOY_TARGET" bash -s -- "$SHA" "$KEFLAB_ENV" "$APP_ROOT" <<'REMOTE'
+          set -Eeuo pipefail
+          sha=$1
+          env_name=$2
+          root=$3
+          cd "$root"
+          (cd incoming && sha256sum -c "$sha.tar.gz.sha256")
+          # Распаковка рядом, живой каталог не трогаем.
+          rm -rf "releases/$sha.new"
+          mkdir -p "releases/$sha.new"
+          tar -xzf "incoming/$sha.tar.gz" -C "releases/$sha.new" --strip-components=1
+          rm -f "incoming/$sha.tar.gz" "incoming/$sha.tar.gz.sha256"
+          live=""
+          if [[ -L current ]]; then live=$(readlink -f current); fi
+          if [[ -e "releases/$sha" ]]; then
+            if [[ -n $live && $live == "$(readlink -f "releases/$sha")" ]]; then
+              # Текущий релиз с тем же sha: каталог не заменяем, новую распаковку выбрасываем.
+              rm -rf "releases/$sha.new"
+            else
+              rm -rf "releases/$sha"
+              mv "releases/$sha.new" "releases/$sha"
+            fi
+          else
+            mv "releases/$sha.new" "releases/$sha"
+          fi
+          KEFLAB_ENV="$env_name" bash "releases/$sha/deploy/scripts/activate.sh" "$sha"
+          REMOTE
+
+      - name: Убрать ключ
+        if: always()
+        run: rm -f "$HOME/.ssh/deploy_key" "$HOME/.ssh/known_hosts"

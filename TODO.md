@@ -105,3 +105,37 @@
 - [ ] Первое включение офферов (позже, шаг 13): `media.registered = true` и
       все выходные данные СМИ в `data/site.json` → утверждённый
       `riskWarning` → `OFFERS_ENABLED=true`.
+
+## Шаг 8. Аналитика, выпуск, мониторинг
+
+Всё, что можно без сервера, сделано и проверено локально (цели Метрики, приём
+ошибок, нагрузочный тест 100/20 rps без ошибок, выпуск и откат в песочнице,
+ревью безопасности). Дальше — инфраструктура, это делаете вы по README:
+
+- [ ] **VPS в России** (Ubuntu 24.04) и **домен keflab.ru**: A-записи
+      keflab.ru, www, staging; TTL DNS ≤ 300 с.
+- [ ] Настроить сервер по README («Восстановление на новом VPS»): пакеты,
+      Node 24, пользователи keflab и deploy (`usermod -aG keflab deploy`),
+      каталоги, `/etc/keflab/*.env`, certbot, конфиги Nginx, закомментировать
+      стандартный `access_log` в `/etc/nginx/nginx.conf`, root-утилита
+      `keflab-install-csp`, sudoers, systemd. Первым делом — `sudo nginx -t` и
+      `systemd-analyze verify` (локально nginx не было).
+- [ ] GitHub: окружения production и staging, Secrets `DEPLOY_HOST`,
+      `DEPLOY_USER`, `DEPLOY_SSH_KEY`, `DEPLOY_KNOWN_HOSTS` (отпечаток ключа
+      хоста сверить), Variables `NUXT_PUBLIC_METRIKA_ID`,
+      `NUXT_PUBLIC_YANDEX_VERIFICATION`, `NUXT_PUBLIC_GOOGLE_VERIFICATION`;
+      для production — Required reviewers и выпуск только из main.
+- [ ] Staging: пароль (`htpasswd`), проверить, что закрыт и отдаёт noindex.
+- [ ] **Выбрать сервисы, работающие из России:** мониторинг доступности
+      (проверка `/api/health` и главной, алерт за 5 минут; срок сертификата —
+      алерт за 14 дней, либо cron `deploy/scripts/check-cert.sh`) и сервис
+      ошибок (точка подключения — `server/utils/report-error.ts`).
+- [ ] Приёмка шага на живом сервере: прод по HTTPS из России; откат
+      `deploy/scripts/remote-rollback.sh` — замерить, меньше 5 минут; цели
+      Метрики на staging после согласия на cookie; в браузере с включённым
+      счётчиком — нет ошибок CSP в консоли (при необходимости добавить хосты
+      Метрики в CSP); `npm run load-test -- --url https://staging.keflab.ru
+    --auth user:pass`.
+- [ ] Решение: Nginx пишет в общий error.log адрес клиента для ошибок вне
+      `/go/` (например, неудачный вход на staging) — принять с хранением 14
+      дней или отключить.

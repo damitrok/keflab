@@ -1,8 +1,8 @@
-# Gates: шаг 7 — юридический слой без офферов
+# Gates: шаг 8 — аналитика, выпуск, мониторинг
 
-OWNS: app/**, server/**, shared/**, scripts/**, tests/**, data/allowlist.json, nuxt.config.ts, playwright.config.ts
+OWNS: app/**, server/**, scripts/**, tests/**, deploy/**, .github/**, README.md, .env.example, package.json
 
-Scope: 18+, плашка «справочный характер», блок про ответственную игру, выходные данные СМИ из data/site.json (скрыты до регистрации), предупреждение о рисках, выключатель офферов (сборка падает, сервер считает выключенными), шаблоны служебных страниц с TODO(legal), баннер cookie и Метрика только после согласия; гейты шагов 1–6 — в истории git.
+Scope: цели Метрики (calc_used, scenario_opened, compare_opened, share_copied; заготовки для виджета и офферов), Nginx (HTTPS, HTTP/2, сжатие, кэш статики, заголовки безопасности, /go без IP), выпуск из GitHub Actions по SSH и откат одной командой, staging под паролем и noindex, мониторинг ошибок без пользовательских данных, нагрузочный тест, README; гейты шагов 1–7 — в истории git. Реальные VPS, домен и сервис мониторинга — за человеком.
 
 - [x] G1: линтер проходит
   CHECK: npm run lint && echo GATE_LINT_OK
@@ -14,32 +14,40 @@ Scope: 18+, плашка «справочный характер», блок п�
   EXPECT: GATE_TYPECHECK_OK
   EVIDENCE: automatic-evidence=v1; definition-sha256=b55b7c8e520339601268674b6c62c81c5cacdb718784d554a415fcb725729f4c; exit=0; EXPECT=matched; output-sha256=f8a32e4b14dc4337629dcd24f60c8f4d15d8c76e0724450727ed7a03fa888cb4; output-bytes=62; shell=/bin/sh; cwd=/Users/dmitriymitrokhin/Desktop/my-project/betting; path=f54d7d698ebf/18 entries
 
-- [x] G3: юнит-тесты (включая выключатель офферов) проходят
+- [x] G3: юнит-тесты (цели, приём ошибок) проходят
   CHECK: npm test && echo GATE_UNIT_OK
   EXPECT: GATE_UNIT_OK
-  EVIDENCE: automatic-evidence=v1; definition-sha256=278326bc14f1fc435a51db07db8624860d16173663ef6c5591119aeb225f8f38; exit=0; EXPECT=matched; output-sha256=cf1a5b5ebc2a9fc394a8668b65b0c0fc27743ec03231452dafb0674fc246e368; output-bytes=1135; shell=/bin/sh; cwd=/Users/dmitriymitrokhin/Desktop/my-project/betting; path=f54d7d698ebf/18 entries
+  EVIDENCE: automatic-evidence=v1; definition-sha256=278326bc14f1fc435a51db07db8624860d16173663ef6c5591119aeb225f8f38; exit=0; EXPECT=matched; output-sha256=d1014b3e599e71e1fcc459c9136a3916584a653d83c3964924caa78375e457bc; output-bytes=1335; shell=/bin/sh; cwd=/Users/dmitriymitrokhin/Desktop/my-project/betting; path=f54d7d698ebf/18 entries
 
-- [x] G4: сборка, внешние ссылки и SEO проходят
+- [x] G4: сборка, ссылки и SEO проходят
   CHECK: npm run build && npm run check:links && npm run check:seo && echo GATE_BUILD_OK
   EXPECT: GATE_BUILD_OK
-  EVIDENCE: automatic-evidence=v1; definition-sha256=e3b1b940a8fecb865ee3193e732fc3e6a0251311025014b3d8b3dff5cd832eb5; exit=0; EXPECT=matched; output-sha256=0b996040dd5aeae41017eb30fbd60dbc3957f900979c4fd361113e4db58346ad; output-bytes=25039; shell=/bin/sh; cwd=/Users/dmitriymitrokhin/Desktop/my-project/betting; path=f54d7d698ebf/18 entries
+  EVIDENCE: automatic-evidence=v1; definition-sha256=e3b1b940a8fecb865ee3193e732fc3e6a0251311025014b3d8b3dff5cd832eb5; exit=0; EXPECT=matched; output-sha256=578bc6af2f2c10257270ec6dcfbf3018bde7d2160afbc1ba68e05d6ed194cee5; output-bytes=26766; shell=/bin/sh; cwd=/Users/dmitriymitrokhin/Desktop/my-project/betting; path=f54d7d698ebf/18 entries
 
-- [x] G5: при media.registered = false сборка с OFFERS_ENABLED=true падает с понятной ошибкой, а запущенный сервер с таким флагом считает офферы выключенными и пишет ошибку
-  CHECK: node scripts/gates/offers-flag.mjs && echo GATE_OFFERS_FLAG_OK
-  EXPECT: GATE_OFFERS_FLAG_OK
-  EVIDENCE: automatic-evidence=v1; definition-sha256=c2ac78cb7f34fb2ee985a3fd911497e1dd674fbb87184cff0380692c3372fba4; exit=0; EXPECT=matched; output-sha256=c09b897dcf347801997c243144fe328b2b1e247043a38cc03d4698e623bcbed0; output-bytes=504; shell=/bin/sh; cwd=/Users/dmitriymitrokhin/Desktop/my-project/betting; path=f54d7d698ebf/18 entries
+- [x] G5: цели Метрики срабатывают только после согласия на cookie (локально, вместо staging)
+  CHECK: npx playwright test tests/e2e/goals tests/e2e/ops && echo GATE_E2E_GOALS_OK
+  EXPECT: GATE_E2E_GOALS_OK
+  EVIDENCE: automatic-evidence=v1; definition-sha256=1c9c855452eb0d819db49bb8ff22561f43e473f45dce1322718078699a2db041; exit=0; EXPECT=matched; output-sha256=73f0fd384619e5d042a949d6b860fe058c69cd807081c0c434c08480bdeed256; output-bytes=3201; shell=/bin/sh; cwd=/Users/dmitriymitrokhin/Desktop/my-project/betting; path=f54d7d698ebf/18 entries
 
-- [x] G6: Метрика не грузится до «Принять» (e2e по сетевым запросам), «Настройки cookie» меняют выбор, блокировщик не ломает страницу; 18+ и плашка на каждой странице
-  CHECK: npx playwright test tests/e2e/consent tests/e2e/legal && echo GATE_E2E_LEGAL_OK
-  EXPECT: GATE_E2E_LEGAL_OK
-  EVIDENCE: automatic-evidence=v1; definition-sha256=482ce2c5250e8bd0378ba6d10a3bbc9fd0028755cb8ed36dfd4d84c860d30554; exit=0; EXPECT=matched; output-sha256=75e9c225dd444842dde3769dbe09ed2d547fcd753e7b4a4f266d5ba5e2bd786e; output-bytes=18440; shell=/bin/sh; cwd=/Users/dmitriymitrokhin/Desktop/my-project/betting; path=f54d7d698ebf/18 entries
-
-- [x] G7: e2e всего сайта (регрессия шагов 1–6) проходят
+- [x] G6: e2e всего сайта (регрессия шагов 1–7) проходят
   CHECK: npm run test:e2e && echo GATE_E2E_ALL_OK
   EXPECT: GATE_E2E_ALL_OK
-  EVIDENCE: automatic-evidence=v1; definition-sha256=8a51bae5a0e8c04dc3acb33e51b9c6736f20d2db217beea5c76c9cfd1410b16b; exit=0; EXPECT=matched; output-sha256=f0ea61c8a62b9cecb7f7713b88d09a84d0724b8fe2ce051a53de446fbb18d103; output-bytes=66270; shell=/bin/sh; cwd=/Users/dmitriymitrokhin/Desktop/my-project/betting; path=f54d7d698ebf/18 entries
+  EVIDENCE: automatic-evidence=v1; definition-sha256=8a51bae5a0e8c04dc3acb33e51b9c6736f20d2db217beea5c76c9cfd1410b16b; exit=0; EXPECT=matched; output-sha256=999011307cc8ea35aca6942f4d13fa2aefe487e0a1ff05eb191b9a6ebc771bda; output-bytes=69243; shell=/bin/sh; cwd=/Users/dmitriymitrokhin/Desktop/my-project/betting; path=f54d7d698ebf/18 entries
 
-- [x] G8: стоп-слова не встречаются в тексте страниц
-  CHECK: node scripts/gates/stopwords.mjs && echo GATE_STOPWORDS_OK
-  EXPECT: GATE_STOPWORDS_OK
-  EVIDENCE: automatic-evidence=v1; definition-sha256=c8c48b436f964c3a770307b2cfdf076c022b648bfd7aa75e95f042da56041fe1; exit=0; EXPECT=matched; output-sha256=13627385ec21cbb055b19285d602bef07fb031cb515404eba2db7da4b47571c7; output-bytes=358; shell=/bin/sh; cwd=/Users/dmitriymitrokhin/Desktop/my-project/betting; path=f54d7d698ebf/18 entries
+- [x] G7: нагрузочный тест локально: 100 rps на главную и 20 rps на /api/geo без ошибок
+  CHECK: node scripts/gates/load.mjs && echo GATE_LOAD_OK
+  EXPECT: GATE_LOAD_OK
+  EVIDENCE: automatic-evidence=v1; definition-sha256=72a24680db8242936044177a8ee05f5ade75ae69a6449583afbc1694fdadb8a9; exit=0; EXPECT=matched; output-sha256=39d54c073d46ee3d9623d93f43b74b28bb7de23973fd90629266960e37b9b4c3; output-bytes=1864; shell=/bin/sh; cwd=/Users/dmitriymitrokhin/Desktop/my-project/betting; path=f54d7d698ebf/18 entries
+
+- [x] G8: скрипты выпуска и отката синтаксически корректны, workflow выпуска разбирается
+  CHECK: for f in deploy/scripts/*.sh; do bash -n "$f" || exit 1; done && node -e "require('yaml').parse(require('fs').readFileSync('.github/workflows/deploy.yml','utf8'))" && echo GATE_DEPLOY_SYNTAX_OK
+  EXPECT: GATE_DEPLOY_SYNTAX_OK
+  EVIDENCE: automatic-evidence=v1; definition-sha256=5dae5d8330604b80113697500f04665f012869c97eb38a1829f2f448efedc8c4; exit=0; EXPECT=matched; output-sha256=d839cc468a4990b2661c87f2fcea32c3ac45f42f2e240b87060577d21a6acafc; output-bytes=22; shell=/bin/sh; cwd=/Users/dmitriymitrokhin/Desktop/my-project/betting; path=f54d7d698ebf/18 entries
+
+- [x] G9: ревью заголовков безопасности и конфигов Nginx (security-auditor) без неисправленных проблем
+  EVIDENCE: 2026-10-25 security-auditor: вердикт «нельзя выпускать» — 2 блокера (env для deploy, права статики для www-data), 1 высокая (CSP-include от deploy разбирался root-nginx — путь к root), 3 средних (CRLF в редиректе через $uri, сборка и SSH-ключ в одной задаче, полные IP в логах порта 80 и error.log /go), низкие (обход CI вручную, default 443, server_tokens, /api/error с чужих сайтов и C1/bidi-символы, повторный выпуск того же sha, X-Forwarded-For, юнит systemd). Всё исправлено: root-утилита keflab-install-csp и sudoers без nginx -t/reload, map по $request_uri, build без секретов и deploy без npm, access_log/error_log crit, проверка CI перед ручным выпуском, isSameOriginReport и Cc/Cf в приёме ошибок (тесты), изоляция юнитов. check:deploy проверяет исправления мутационно (include из /srv и $uri в return ловятся); песочница выпуска и отката — 16 сценариев зелёные. Без VPS не проверено: nginx -t, systemd-analyze — в TODO.
+
+- [ ] G10: прод открывается по HTTPS из России, staging закрыт паролем и не индексируется, откат меньше 5 минут
+  EVIDENCE: pending
+
+ABANDON: G10 нужен реальный VPS в России, домен keflab.ru, DNS и сертификаты — за человеком (README «Восстановление на новом VPS», TODO.md шаг 8); конфиги, выпуск и откат проверены в песочнице.

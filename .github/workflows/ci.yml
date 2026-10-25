@@ -29,6 +29,8 @@ jobs:
       - name: Проверка data/*.json
         run: npm run check:data
       - run: npm run lint
+      - name: Конфиги выпуска (Nginx, systemd, скрипты)
+        run: npm run check:deploy
       - run: npm run typecheck
       - run: npm test
       - run: npm run build

@@ -15,6 +15,7 @@ import {
   type InputErrorCode,
 } from '~/lib/calc'
 import { expressIfOneVoided, type WhatIfResult } from '~/lib/calc/what-if'
+import { createCalcUsedReporter } from '~/lib/goals'
 import { reportError } from '~/lib/report-error'
 
 export const MIN_EXPRESS_EVENTS = 2
@@ -178,6 +179,17 @@ export function useExpressCalc() {
   const whatIf = computed(() => computedState.value.whatIf)
   const pendingCount = computed(() => events.value.filter((e) => e.status === 'pending').length)
 
+  // Цель calc_used: итог рассчитан после действия пользователя.
+  const calcUsed = createCalcUsedReporter('express')
+  watch(
+    () => {
+      const r = result.value
+      return !!(r && r.ok && r.settlement.settled)
+    },
+    (ready) => calcUsed.setReady(ready),
+    { immediate: true },
+  )
+
   function addEvent(): ExpressEventInput | null {
     if (!canAdd.value) return null
     const e = blankEvent()
@@ -228,6 +240,8 @@ export function useExpressCalc() {
     removeEvent,
     clearAll,
     restore,
+    /** Вызывать при вводе пользователя (для цели calc_used). */
+    markUserInput: calcUsed.touch,
   }
 }
 
