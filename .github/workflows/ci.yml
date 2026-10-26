@@ -31,6 +31,8 @@ jobs:
       - name: Офферы (erid, рекламодатель, домены, стоп-слова, сроки)
         run: npm run check:offers
       - run: npm run lint
+      - name: Карта проекта соответствует коду
+        run: npm run map:check
       - name: Конфиги выпуска (Nginx, systemd, скрипты)
         run: npm run check:deploy
       - run: npm run typecheck
