@@ -53,7 +53,11 @@ function shellcheckAll(files) {
     notes.push('shellcheck не установлен: пропущен')
     return
   }
-  const result = spawnSync('shellcheck', files, { cwd: ROOT, encoding: 'utf8' })
+  // -x и -P SCRIPTDIR: заходить в подключаемый lib.sh рядом со скриптом.
+  const result = spawnSync('shellcheck', ['-x', '-P', 'SCRIPTDIR', ...files], {
+    cwd: ROOT,
+    encoding: 'utf8',
+  })
   if (result.status !== 0) fail(`shellcheck:\n${result.stdout}${result.stderr}`)
 }
 

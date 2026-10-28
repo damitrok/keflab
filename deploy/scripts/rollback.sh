@@ -10,7 +10,7 @@
 set -Eeuo pipefail
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-# shellcheck source=lib.sh
+# shellcheck source=deploy/scripts/lib.sh
 . "$SCRIPT_DIR/lib.sh"
 
 target=${1:-}

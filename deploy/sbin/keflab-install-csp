@@ -73,6 +73,8 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# $keflab_script_hashes — переменная nginx, а не shell: одинарные кавычки намеренно.
+# shellcheck disable=SC2016
 printf 'set $keflab_script_hashes "%s";\n' "$tokens" >"$tmp"
 chmod 644 "$tmp"
 

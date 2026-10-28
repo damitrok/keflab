@@ -34,5 +34,8 @@ if [[ -n ${KEFLAB_SSH_KEY:-} ]]; then
 fi
 
 started=$(date +%s)
+# Значения намеренно подставляются на этой машине: env_name, app_root и sha
+# проверены выше строгими шаблонами.
+# shellcheck disable=SC2029
 ssh "${ssh_opts[@]}" "$KEFLAB_SSH_TARGET" "KEFLAB_ENV=$env_name $app_root/bin/rollback.sh $sha"
 echo "откат занял $(($(date +%s) - started)) с (цель — меньше 5 минут)"

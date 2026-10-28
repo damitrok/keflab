@@ -5,6 +5,11 @@
 # Переопределения для проверок на другой машине (в проде не задавать):
 #   KEFLAB_APP_ROOT, KEFLAB_ENV_FILE, KEFLAB_SERVICE, KEFLAB_PORT, KEFLAB_TMP_PORT,
 #   KEFLAB_NODE, KEFLAB_CSP_TOOL
+#
+# Переменные ниже (NODE_BIN, KEEP_RELEASES, TMP_PORT, ORDER_FILE, APPLIED_PREV …)
+# читают подключающие скрипты activate.sh и rollback.sh — shellcheck, проверяя
+# lib.sh отдельно, этого не видит.
+# shellcheck disable=SC2034
 
 set -Eeuo pipefail
 
@@ -176,11 +181,15 @@ apply_release() {
 
 # Первый файл JS из _nuxt предсобранного релиза (для публичной проверки).
 first_asset() {
-  local dir=$1 f=""
-  if [[ -d $dir/_nuxt ]]; then
-    f=$(ls -1 "$dir/_nuxt" | grep -m1 '\.js$' || true)
-  fi
-  printf '%s' "$f"
+  local dir=$1 path
+  for path in "$dir"/_nuxt/*.js; do
+    # Без совпадений glob остаётся буквальным — проверяем, что файл есть.
+    if [[ -f $path ]]; then
+      printf '%s' "${path##*/}"
+      return 0
+    fi
+  done
+  printf ''
 }
 
 # Публичная проверка через Nginx (TLS, заголовки, proxy, статика): /api/health,
